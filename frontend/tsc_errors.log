@@ -1,0 +1,123 @@
+src/components/EmployeeForm.tsx(15,3): error TS6133: 'Trash2' is declared but its value is never read.
+src/components/EmployeeForm.tsx(233,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/EmployeeForm.tsx(237,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/ErrorBoundary.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/MilestoneForm.tsx(3,50): error TS6133: 'User' is declared but its value is never read.
+src/components/MilestoneForm.tsx(3,56): error TS6133: 'FolderOpen' is declared but its value is never read.
+src/components/MilestoneForm.tsx(177,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/MilestoneForm.tsx(189,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/MilestoneForm.tsx(290,85): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/MilestoneForm.tsx(319,85): error TS2322: Type 'number' is not assignable to type 'string'.
+src/components/QuotationForm.tsx(50,9): error TS2322: Type 'string' is not assignable to type '"Web" | "Android" | "iOS" | "All"'.
+src/components/QuotationForm.tsx(51,9): error TS2322: Type 'string' is not assignable to type '"Website" | "Mobile App" | "CRM" | "LMS" | "E-commerce" | "Custom"'.
+src/components/QuotationFormTabs.tsx(2,59): error TS2724: '"../types"' has no exported member named 'UpdateQuotationData'. Did you mean 'CreateQuotationData'?
+src/components/QuotationFormTabs.tsx(66,9): error TS2322: Type 'string' is not assignable to type '"Web" | "Android" | "iOS" | "All"'.
+src/components/QuotationFormTabs.tsx(67,9): error TS2322: Type 'string' is not assignable to type '"Website" | "Mobile App" | "CRM" | "LMS" | "E-commerce" | "Custom"'.
+src/components/QuotationPDF.tsx(180,51): error TS2551: Property 'totalDeveloperCost' does not exist on type 'Quotation'. Did you mean 'totalDevelopmentCost'?
+src/components/QuotationPDF.tsx(184,51): error TS2339: Property 'totalDesignerCost' does not exist on type 'Quotation'.
+src/components/QuotationPDF.tsx(188,51): error TS2339: Property 'totalTesterCost' does not exist on type 'Quotation'.
+src/components/TaskBoard.tsx(7,3): error TS6133: 'User' is declared but its value is never read.
+src/components/TaskBoard.tsx(18,55): error TS6133: 'projectId' is declared but its value is never read.
+src/components/TaskBoard.tsx(126,63): error TS6133: 'index' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(9,3): error TS6133: 'MessageSquare' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(10,3): error TS6133: 'Paperclip' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(12,3): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(13,3): error TS6133: 'CheckCircle' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(15,3): error TS6133: 'MoreVertical' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(18,3): error TS6133: 'File' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(20,3): error TS6133: 'Plus' is declared but its value is never read.
+src/components/TaskDetailModal.tsx(21,3): error TS6133: 'Trash2' is declared but its value is never read.
+src/components/TimeTracker.tsx(3,17): error TS6133: 'Play' is declared but its value is never read.
+src/components/TimeTracker.tsx(3,23): error TS6133: 'Pause' is declared but its value is never read.
+src/components/__tests__/Login.test.tsx(6,19): error TS2307: Cannot find module '../Login' or its corresponding type declarations.
+src/components/__tests__/Login.test.tsx(19,5): error TS2698: Spread types may only be created from object types.
+src/pages/CreateProject.tsx(10,3): error TS6133: 'FileText' is declared but its value is never read.
+src/pages/CreateProject.tsx(54,17): error TS6133: 'response' is declared but its value is never read.
+src/pages/CreateProject.tsx(98,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/pages/CreateTask.tsx(9,3): error TS6133: 'User' is declared but its value is never read.
+src/pages/CreateTask.tsx(10,3): error TS6133: 'FileText' is declared but its value is never read.
+src/pages/CreateTask.tsx(12,3): error TS6133: 'Flag' is declared but its value is never read.
+src/pages/CreateTask.tsx(110,17): error TS6133: 'response' is declared but its value is never read.
+src/pages/CreateTask.tsx(159,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/pages/CreateTask.tsx(163,7): error TS2322: Type 'string' is not assignable to type 'number'.
+src/pages/CreateTask.tsx(183,7): error TS2322: Type 'string' is not assignable to type 'number[]'.
+src/pages/CreateTask.tsx(283,85): error TS2322: Type 'number' is not assignable to type 'string'.
+src/pages/CreateTask.tsx(315,85): error TS2322: Type 'number | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/pages/CreateTask.tsx(320,32): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/CreateTask.tsx(527,33): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/Dashboard.tsx(1,17): error TS6133: 'useEffect' is declared but its value is never read.
+src/pages/Dashboard.tsx(1,28): error TS6133: 'useState' is declared but its value is never read.
+src/pages/Dashboard.tsx(9,3): error TS6133: 'Users' is declared but its value is never read.
+src/pages/Dashboard.tsx(10,3): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/DocumentDetail.tsx(11,3): error TS6133: 'Edit3' is declared but its value is never read.
+src/pages/DocumentDetail.tsx(91,30): error TS2339: Property 'getDocument' does not exist on type 'ApiClient'.
+src/pages/DocumentDetail.tsx(97,45): error TS2339: Property 'addComment' does not exist on type 'ApiClient'.
+src/pages/DocumentDetail.tsx(110,46): error TS2339: Property 'uploadFiles' does not exist on type 'ApiClient'.
+src/pages/DocumentDetail.tsx(123,47): error TS2339: Property 'deleteFile' does not exist on type 'ApiClient'.
+src/pages/DocumentDetail.tsx(411,35): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "className" | "id" | "style" | "icon" | "duration" | "ariaProps" | "position" | "iconTheme" | "toasterId" | "removeDelay">> | undefined): string; ... 8 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undef...'.
+src/pages/Documentation.tsx(1,27): error TS6133: 'useEffect' is declared but its value is never read.
+src/pages/Documentation.tsx(4,24): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/Documentation.tsx(67,9): error TS6133: 'user' is declared but its value is never read.
+src/pages/Documentation.tsx(85,30): error TS2339: Property 'getProjects' does not exist on type 'ApiClient'.
+src/pages/Documentation.tsx(91,30): error TS2339: Property 'getDocuments' does not exist on type 'ApiClient'.
+src/pages/Documentation.tsx(97,57): error TS2339: Property 'createDocument' does not exist on type 'ApiClient'.
+src/pages/EmployeeManagement.tsx(14,3): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/EmployeeManagement.tsx(19,3): error TS6133: 'UserX' is declared but its value is never read.
+src/pages/EmployeeManagement.tsx(20,3): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/pages/EmployeeManagement.tsx(25,8): error TS2440: Import declaration conflicts with local declaration of 'EmployeeForm'.
+src/pages/EmployeeManagement.tsx(79,9): error TS6133: 'createEmployeeMutation' is declared but its value is never read.
+src/pages/EmployeeManagement.tsx(91,9): error TS6133: 'updateEmployeeMutation' is declared but its value is never read.
+src/pages/EmployeeManagement.tsx(468,9): error TS2322: Type 'Employee | null' is not assignable to type 'Employee | null | undefined'.
+  Type 'Employee' is not assignable to type 'Employee'. Two different types with this name exist, but they are unrelated.
+    Types of property 'skills' are incompatible.
+      Type 'string | string[]' is not assignable to type 'string[]'.
+        Type 'string' is not assignable to type 'string[]'.
+src/pages/InvoiceHistory.tsx(9,3): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(10,3): error TS6133: 'User' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(11,3): error TS6133: 'Building' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(15,3): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(17,3): error TS6133: 'Plus' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(18,3): error TS6133: 'MoreVertical' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(44,9): error TS6133: 'payments' is declared but its value is never read.
+src/pages/InvoiceHistory.tsx(72,35): error TS6133: 'reset' is declared but its value is never read.
+src/pages/MilestoneManagement.tsx(316,26): error TS2339: Property 'map' does not exist on type '{}'.
+src/pages/MilestoneManagement.tsx(316,31): error TS7006: Parameter 'project' implicitly has an 'any' type.
+src/pages/Notifications.tsx(6,3): error TS6133: 'X' is declared but its value is never read.
+src/pages/Notifications.tsx(10,3): error TS6133: 'AlertCircle' is declared but its value is never read.
+src/pages/Notifications.tsx(291,33): error TS2339: Property 'metadata' does not exist on type 'Notification'.
+src/pages/Notifications.tsx(293,37): error TS2339: Property 'metadata' does not exist on type 'Notification'.
+src/pages/Notifications.tsx(294,54): error TS2339: Property 'metadata' does not exist on type 'Notification'.
+src/pages/Notifications.tsx(296,37): error TS2339: Property 'metadata' does not exist on type 'Notification'.
+src/pages/Notifications.tsx(297,51): error TS2339: Property 'metadata' does not exist on type 'Notification'.
+src/pages/Projects.tsx(10,3): error TS6133: 'DollarSign' is declared but its value is never read.
+src/pages/Projects.tsx(17,3): error TS6133: 'Pause' is declared but its value is never read.
+src/pages/Projects.tsx(18,3): error TS6133: 'Play' is declared but its value is never read.
+src/pages/Projects.tsx(34,9): error TS6133: 'dashboardSummary' is declared but its value is never read.
+src/pages/Quotations.tsx(64,33): error TS6133: 'quotation' is declared but its value is never read.
+src/pages/Tasks.tsx(16,3): error TS6133: 'Pause' is declared but its value is never read.
+src/pages/Tasks.tsx(17,3): error TS6133: 'Square' is declared but its value is never read.
+src/pages/Tasks.tsx(216,27): error TS2551: Property 'module' does not exist on type 'Task'. Did you mean 'moduleId'?
+src/pages/Tasks.tsx(219,54): error TS2551: Property 'module' does not exist on type 'Task'. Did you mean 'moduleId'?
+src/pages/Tasks.tsx(237,27): error TS2339: Property 'assignments' does not exist on type 'Task'.
+src/pages/Tasks.tsx(237,47): error TS2339: Property 'assignments' does not exist on type 'Task'.
+src/pages/Tasks.tsx(240,37): error TS2339: Property 'assignments' does not exist on type 'Task'.
+src/pages/Timesheet.tsx(4,3): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/Timesheet.tsx(5,3): error TS6133: 'Filter' is declared but its value is never read.
+src/pages/Timesheet.tsx(6,3): error TS6133: 'Download' is declared but its value is never read.
+src/pages/Timesheet.tsx(11,3): error TS6133: 'Building' is declared but its value is never read.
+src/pages/Timesheet.tsx(12,3): error TS6133: 'Plus' is declared but its value is never read.
+src/pages/Timesheet.tsx(82,26): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SetStateAction<Invoice | null>'.
+src/pages/Timesheet.tsx(100,35): error TS6133: 'reset' is declared but its value is never read.
+src/pages/Timesheet.tsx(100,42): error TS6133: 'setValue' is declared but its value is never read.
+src/pages/Timesheet.tsx(102,22): error TS2532: Object is possibly 'undefined'.
+src/pages/UsersAdmin.tsx(11,3): error TS6133: 'Mail' is declared but its value is never read.
+src/pages/UsersAdmin.tsx(12,3): error TS6133: 'Phone' is declared but its value is never read.
+src/pages/UsersAdmin.tsx(13,3): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/UsersAdmin.tsx(14,3): error TS6133: 'MoreVertical' is declared but its value is never read.
+src/pages/UsersAdmin.tsx(15,3): error TS6133: 'CheckCircle' is declared but its value is never read.
+src/pages/UsersAdmin.tsx(48,40): error TS2341: Property 'client' is private and only accessible within class 'ApiClient'.
+src/pages/UsersAdmin.tsx(118,35): error TS2551: Property 'roleId' does not exist on type 'User'. Did you mean 'role'?
+src/pages/UsersAdmin.tsx(143,38): error TS2367: This comparison appears to be unintentional because the types 'number' and 'string' have no overlap.
+src/services/api.ts(1,52): error TS6133: 'AxiosResponse' is declared but its value is never read.
+src/services/emailService.ts(107,61): error TS6133: 'emailData' is declared but its value is never read.
