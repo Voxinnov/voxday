@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BellRing, Clock } from 'lucide-react';
+import { BellRing, Clock, BellOff, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import api from '../services/smartApi';
 
@@ -15,6 +15,7 @@ interface Reminder {
 const GlobalReminder: React.FC = () => {
     const [reminders, setReminders] = useState<Reminder[]>([]);
     const [activeAlarm, setActiveAlarm] = useState<Reminder | null>(null);
+    const [turningOff, setTurningOff] = useState(false);
     const notifiedRemindersRef = useRef<Set<number>>(new Set());
     const audioCtxRef = useRef<AudioContext | null>(null);
     const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -31,7 +32,7 @@ const GlobalReminder: React.FC = () => {
 
     useEffect(() => {
         fetchReminders();
-        // Poll for new reminders every 10 seconds to catch recently added ones
+        // Poll every 10 seconds to catch newly added reminders
         const fetchIntervalId = setInterval(fetchReminders, 10000);
         return () => clearInterval(fetchIntervalId);
     }, [location.pathname]);
@@ -79,7 +80,7 @@ const GlobalReminder: React.FC = () => {
             playDoubleBeep();
             beepIntervalRef.current = setInterval(playDoubleBeep, 1000);
         } catch (e) {
-            console.error("Audio playback failed", e);
+            console.error('Audio playback failed', e);
         }
     };
 
@@ -90,9 +91,30 @@ const GlobalReminder: React.FC = () => {
         }
     };
 
+    // Dismiss: hides for this session only — reminder stays pending
     const dismissAlarm = () => {
         setActiveAlarm(null);
         stopContinuousBeep();
+    };
+
+    // Turn OFF: marks reminder as completed permanently — won't show again as popup
+    // But it will still appear in the calendar (with muted/strikethrough style)
+    const turnOffReminder = async () => {
+        if (!activeAlarm) return;
+        setTurningOff(true);
+        try {
+            await api.patch(`/reminders/${activeAlarm.id}/status`, { status: 'completed' });
+            // Update local state so the popup won't re-trigger
+            setReminders(prev =>
+                prev.map(r => r.id === activeAlarm.id ? { ...r, status: 'completed' } : r)
+            );
+            setActiveAlarm(null);
+            stopContinuousBeep();
+        } catch (error) {
+            console.error('Error turning off reminder:', error);
+        } finally {
+            setTurningOff(false);
+        }
     };
 
     useEffect(() => {
@@ -109,13 +131,10 @@ const GlobalReminder: React.FC = () => {
                     const [hours, minutes] = r.event_time.split(':').map(Number);
                     rDate.setHours(hours, minutes, 0, 0);
                 } else {
-                    // Default to midnight or treat 00:00 as time
                     rDate.setHours(0, 0, 0, 0);
                 }
 
-                // If event time is in the future, don't trigger yet
                 if (rDate > now) return false;
-
                 if (notifiedRemindersRef.current.has(r.id)) return false;
                 return true;
             });
@@ -139,6 +158,8 @@ const GlobalReminder: React.FC = () => {
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={dismissAlarm} />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border border-pink-100 animate-fade-in-up">
+
+                {/* Header */}
                 <div className="bg-gradient-to-r from-pink-500 to-pink-600 px-6 py-8 text-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                     <div className="absolute bottom-0 left-0 -mb-6 -ml-6 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
@@ -147,22 +168,47 @@ const GlobalReminder: React.FC = () => {
                     </div>
                     <h2 className="text-2xl font-extrabold text-white relative z-10 tracking-tight">Reminder Alert</h2>
                 </div>
-                <div className="px-6 py-8 text-center space-y-5 bg-white">
+
+                {/* Content */}
+                <div className="px-6 py-6 text-center space-y-4 bg-white">
                     <h3 className="text-2xl font-bold text-gray-800 break-words leading-tight">{activeAlarm.title}</h3>
                     {activeAlarm.description && (
                         <p className="text-gray-600 text-sm whitespace-pre-wrap">{activeAlarm.description}</p>
                     )}
-                    <div className="flex items-center justify-center gap-2 text-pink-700 font-bold bg-pink-50 py-2.5 px-5 rounded-xl inline-flex mx-auto border border-pink-100 shadow-sm">
-                        <Clock size={18} />
-                        {activeAlarm.event_time?.slice(0, 5)}
-                    </div>
+                    {activeAlarm.event_time && (
+                        <div className="flex items-center justify-center gap-2 text-pink-700 font-bold bg-pink-50 py-2.5 px-5 rounded-xl inline-flex mx-auto border border-pink-100 shadow-sm">
+                            <Clock size={18} />
+                            {activeAlarm.event_time.slice(0, 5)}
+                        </div>
+                    )}
+
+                    {/* OFF hint */}
+                    <p className="text-xs text-gray-400 mt-1">
+                        Click <strong>Turn OFF</strong> to permanently silence this reminder. It will still appear in the calendar.
+                    </p>
                 </div>
-                <div className="px-6 pb-8 pt-2 flex justify-center bg-white">
+
+                {/* Action Buttons */}
+                <div className="px-6 pb-6 pt-2 flex flex-col gap-3 bg-white">
+                    {/* Turn OFF button — prominent, red-accented */}
+                    <button
+                        onClick={turnOffReminder}
+                        disabled={turningOff}
+                        className="w-full flex items-center justify-center gap-2.5 bg-red-50 hover:bg-red-100 border-2 border-red-200 hover:border-red-300 text-red-600 hover:text-red-700 font-bold text-base py-3 px-4 rounded-xl transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        <BellOff size={20} />
+                        {turningOff ? 'Turning Off...' : 'Turn OFF'}
+                        <span className="text-xs font-normal text-red-400 ml-1">(Don't show again)</span>
+                    </button>
+
+                    {/* Dismiss button — session only */}
                     <button
                         onClick={dismissAlarm}
-                        className="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold text-lg py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+                        className="w-full flex items-center justify-center gap-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-base py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
                     >
+                        <X size={18} />
                         Dismiss
+                        <span className="text-xs font-normal text-pink-200 ml-1">(Hide for now)</span>
                     </button>
                 </div>
             </div>

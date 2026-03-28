@@ -90,3 +90,22 @@ exports.deleteReminder = async (req, res) => {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
+
+// @desc    Patch reminder status only (turn OFF / reopen)
+// @route   PATCH /api/reminders/:id/status
+exports.patchReminderStatus = async (req, res) => {
+    const { status } = req.body;
+    if (!status || !['pending', 'completed'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status. Use pending or completed.' });
+    }
+    try {
+        const [result] = await db.query(
+            'UPDATE event_reminders SET status = ? WHERE id = ? AND user_id = ?',
+            [status, req.params.id, req.user.id]
+        );
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Reminder not found' });
+        res.json({ message: 'Reminder status updated', status });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};

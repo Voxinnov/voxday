@@ -177,7 +177,7 @@ const Notes: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!noteTitle.trim() && !noteContent.trim()) {
+        if (!noteTitle.trim() && !noteContent.trim() && noteColor === '#ffffff') {
             resetForm();
             return;
         }

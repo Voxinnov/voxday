@@ -7,6 +7,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import api from '../../services/smartApi';
+import { toast } from 'react-hot-toast';
 
 interface Todo {
   id: number;
@@ -27,8 +28,9 @@ const Todos: React.FC = () => {
     try {
       const response = await api.get('/todos');
       setTodos(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching todos:', error);
+      toast.error('Failed to load todos');
     } finally {
       setLoading(false);
     }
@@ -36,14 +38,18 @@ const Todos: React.FC = () => {
 
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTodo.trim()) return;
+    if (!newTodo.trim()) {
+      return;
+    }
 
     try {
       const response = await api.post('/todos', { title: newTodo, status: 'pending' });
       setTodos([response.data, ...todos]);
       setNewTodo('');
-    } catch (error) {
+      toast.success('Todo added successfully');
+    } catch (error: any) {
       console.error('Error adding todo:', error);
+      toast.error(error.response?.data?.message || 'Failed to add todo');
     }
   };
 
@@ -52,8 +58,9 @@ const Todos: React.FC = () => {
     try {
       await api.put(`/todos/${todo.id}`, { ...todo, status: newStatus });
       setTodos(todos.map(t => t.id === todo.id ? { ...t, status: newStatus } : t));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating todo:', error);
+      toast.error('Failed to update todo');
     }
   };
 
@@ -61,8 +68,10 @@ const Todos: React.FC = () => {
     try {
       await api.delete(`/todos/${id}`);
       setTodos(todos.filter(t => t.id !== id));
-    } catch (error) {
+      toast.success('Todo deleted');
+    } catch (error: any) {
       console.error('Error deleting todo:', error);
+      toast.error('Failed to delete todo');
     }
   };
 

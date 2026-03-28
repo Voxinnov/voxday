@@ -67,9 +67,15 @@ const updateNote = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Note not found' });
         }
 
+        const existingNote = rows[0];
+        const newTitle = title !== undefined ? title : existingNote.title;
+        const newContent = content !== undefined ? content : existingNote.content;
+        const newColor = color !== undefined ? color : existingNote.color;
+        const newIsPinned = is_pinned !== undefined ? is_pinned : existingNote.is_pinned;
+
         await pool.query(
             'UPDATE notes SET title = ?, content = ?, color = ?, is_pinned = ? WHERE id = ? AND user_id = ?',
-            [title, content, color, is_pinned, id, userId]
+            [newTitle, newContent, newColor, newIsPinned, id, userId]
         );
 
         const [updatedNote] = await pool.query('SELECT * FROM notes WHERE id = ?', [id]);

@@ -6,7 +6,9 @@ import {
   CheckCircle2,
   Circle,
   Search,
-  Tag
+  Tag,
+  Pencil,
+  Lock
 } from 'lucide-react';
 import Modal from '../../components/Common/Modal';
 import api from '../../services/smartApi';
@@ -57,6 +59,8 @@ const Tasks: React.FC = () => {
 
   const handleOpenModal = (task: Task | null = null) => {
     if (task) {
+      // Completed tasks cannot be edited
+      if (task.status === 'completed') return;
       setEditingTask(task);
       setFormData({
         title: task.title,
@@ -96,10 +100,11 @@ const Tasks: React.FC = () => {
   const toggleTaskStatus = async (task: Task) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     try {
-      await api.put(`/tasks/${task.id}`, { ...task, status: newStatus });
+      await api.patch(`/tasks/${task.id}/status`, { status: newStatus });
       setTasks(tasks.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
-    } catch (error) {
-      console.error('Error updating task status:', error);
+    } catch (error: any) {
+      console.error('Error updating task status:', error?.response?.data || error);
+      alert(error?.response?.data?.message || 'Error updating task status');
     }
   };
 
@@ -161,44 +166,74 @@ const Tasks: React.FC = () => {
           <div className="grid grid-cols-1 gap-4">
             {filteredTasks.map((task) => (
               <div key={task.id} className={`bg-white p-5 rounded-xl border transition-all ${
-                task.status === 'completed' ? 'opacity-70 border-green-200 bg-green-50/10' : 'border-gray-100 shadow-sm hover:shadow-md'
+                task.status === 'completed'
+                  ? 'border-green-200 bg-green-50/30'
+                  : 'border-gray-100 shadow-sm hover:shadow-md'
               }`}>
                 <div className="flex gap-4 items-start">
                   <button 
                     onClick={() => toggleTaskStatus(task)}
                     className="mt-1 transition-transform active:scale-95"
+                    title={task.status === 'completed' ? 'Mark as pending' : 'Mark as complete'}
                   >
                     {task.status === 'completed' ? 
                       <CheckCircle2 className="text-green-500" size={22} /> : 
-                      <Circle className="text-gray-300" size={22} />
+                      <Circle className="text-gray-300 hover:text-indigo-400 transition-colors" size={22} />
                     }
                   </button>
                   <div className="flex-1">
-                    <h3 className={`text-base font-bold text-gray-900 ${task.status === 'completed' ? 'line-through text-gray-400' : ''}`}>
-                      {task.title}
-                    </h3>
-                    {task.description && <p className="text-sm text-gray-500 mt-1">{task.description}</p>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className={`text-base font-bold ${
+                        task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'
+                      }`}>
+                        {task.title}
+                      </h3>
+                      {task.status === 'completed' && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                          <CheckCircle2 size={11} />
+                          Completed
+                        </span>
+                      )}
+                    </div>
+                    {task.description && (
+                      <p className={`text-sm mt-1 ${
+                        task.status === 'completed' ? 'text-gray-400' : 'text-gray-500'
+                      }`}>{task.description}</p>
+                    )}
                     <div className="flex flex-wrap gap-4 mt-4">
                       <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
                         <Calendar size={14} />
                         {new Date(task.due_date).toLocaleDateString()}
                       </span>
-                      <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${getPriorityColor(task.priority)}`}>
+                      <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${
+                        task.status === 'completed' ? 'text-gray-400 bg-gray-100' : getPriorityColor(task.priority)
+                      }`}>
                         <Flag size={14} />
                         {task.priority || 'Medium'}
                       </span>
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    {task.status === 'completed' ? (
+                      <div
+                        className="p-2 rounded-lg text-gray-300 cursor-not-allowed"
+                        title="Completed tasks cannot be edited"
+                      >
+                        <Lock size={18} />
+                      </div>
+                    ) : (
+                      <button 
+                        className="p-2 hover:bg-indigo-50 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors"
+                        onClick={() => handleOpenModal(task)}
+                        title="Edit task"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                    )}
                     <button 
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-indigo-600 transition-colors"
-                      onClick={() => handleOpenModal(task)}
-                    >
-                      <Plus size={18} />
-                    </button>
-                    <button 
-                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+                      className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
                       onClick={() => handleDelete(task.id)}
+                      title="Delete task"
                     >
                       <Tag size={18} />
                     </button>

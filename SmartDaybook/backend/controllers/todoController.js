@@ -4,6 +4,7 @@ const db = require('../config/db');
 // @route   GET /api/todos
 exports.getTodos = async (req, res) => {
     try {
+        console.log("getTodos hit: ", req.user?.id);
         const [todos] = await db.query('SELECT * FROM todos WHERE user_id = ? ORDER BY due_date ASC', [req.user.id]);
         res.json(todos);
     } catch (error) {
@@ -14,6 +15,7 @@ exports.getTodos = async (req, res) => {
 // @desc    Create a todo
 // @route   POST /api/todos
 exports.createTodo = async (req, res) => {
+    console.log("createTodo hit: ", req.body, " User ID:", req.user?.id);
     const { title, description, due_date, priority, status } = req.body;
     if (!title) {
         return res.status(400).json({ message: 'Please provide a title' });
