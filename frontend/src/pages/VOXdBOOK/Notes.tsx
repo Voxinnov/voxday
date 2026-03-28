@@ -395,7 +395,7 @@ const Notes: React.FC = () => {
                                         <button className="p-2 rounded-full text-gray-600 hover:bg-black/10 transition-colors" title="Background options">
                                             <Palette size={18} />
                                         </button>
-                                        <div className="absolute top-full left-0 mt-2 p-2 bg-white rounded-lg shadow-xl border border-gray-100 flex flex-wrap gap-1.5 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none group-hover:pointer-events-auto">
+                                        <div className="absolute bottom-full left-0 mb-2 p-2 bg-white rounded-lg shadow-xl border border-gray-100 flex flex-wrap gap-1.5 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none group-hover:pointer-events-auto">
                                             {COLORS.map(c => (
                                                 <button
                                                     key={c}
