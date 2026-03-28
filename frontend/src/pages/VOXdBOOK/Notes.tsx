@@ -395,15 +395,17 @@ const Notes: React.FC = () => {
                                         <button className="p-2 rounded-full text-gray-600 hover:bg-black/10 transition-colors" title="Background options">
                                             <Palette size={18} />
                                         </button>
-                                        <div className="absolute bottom-full left-0 mb-2 p-2 bg-white rounded-lg shadow-xl border border-gray-100 flex flex-wrap gap-1.5 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none group-hover:pointer-events-auto">
-                                            {COLORS.map(c => (
-                                                <button
-                                                    key={c}
-                                                    onClick={(e) => { e.stopPropagation(); setNoteColor(c); }}
-                                                    className={`w-8 h-8 rounded-full border ${noteColor === c ? 'border-amber-500 border-2' : 'border-gray-200'} hover:scale-110 transition-transform`}
-                                                    style={{ backgroundColor: c }}
-                                                />
-                                            ))}
+                                        <div className="absolute bottom-full left-0 pb-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 pointer-events-none group-hover:pointer-events-auto">
+                                            <div className="p-2 bg-white rounded-lg shadow-xl border border-gray-100 flex flex-wrap gap-1.5 w-64">
+                                                {COLORS.map(c => (
+                                                    <button
+                                                        key={c}
+                                                        onClick={(e) => { e.stopPropagation(); setNoteColor(c); }}
+                                                        className={`w-8 h-8 rounded-full border ${noteColor === c ? 'border-amber-500 border-2' : 'border-gray-200'} hover:scale-110 transition-transform`}
+                                                        style={{ backgroundColor: c }}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
