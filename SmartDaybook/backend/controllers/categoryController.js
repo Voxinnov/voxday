@@ -18,6 +18,9 @@ exports.createCategory = async (req, res) => {
     if (!name || !type) {
         return res.status(400).json({ message: 'Please provide name and type' });
     }
+    if (type !== 'income' && type !== 'expense' && type !== 'transfer') {
+        return res.status(400).json({ message: 'Invalid category type.' });
+    }
     try {
         const [result] = await db.query(
             'INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)',
@@ -25,7 +28,7 @@ exports.createCategory = async (req, res) => {
         );
         res.status(201).json({ id: result.insertId, user_id: req.user.id, name, type });
     } catch (error) {
-        res.status(500).json({ message: 'Server Error', error: error.message });
+        res.status(500).json({ message: 'Failed to create category.', error: error.message });
     }
 };
 
@@ -33,6 +36,9 @@ exports.createCategory = async (req, res) => {
 // @route   PUT /api/categories/:id
 exports.updateCategory = async (req, res) => {
     const { name, type } = req.body;
+    if (type && type !== 'income' && type !== 'expense' && type !== 'transfer') {
+        return res.status(400).json({ message: 'Invalid category type.' });
+    }
     try {
         const [result] = await db.query(
             'UPDATE categories SET name = ?, type = ? WHERE id = ? AND user_id = ?',

@@ -292,20 +292,21 @@ const Renewals: React.FC = () => {
                                 <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Frequency</th>
                                 <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Next Renewal</th>
                                 <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Remark</th>
                                 <th className="px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={8} className="px-5 py-12 text-center text-gray-400">
+                                    <td colSpan={9} className="px-5 py-12 text-center text-gray-400">
                                         <RefreshCw size={24} className="animate-spin mx-auto mb-2 opacity-40" />
                                         Loading renewals...
                                     </td>
                                 </tr>
                             ) : filteredRenewals.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-5 py-16 text-center">
+                                    <td colSpan={9} className="px-5 py-16 text-center">
                                         <RefreshCw size={32} className="mx-auto mb-3 text-gray-200" />
                                         <p className="text-gray-400 font-medium">No renewals found</p>
                                         <p className="text-gray-300 text-sm mt-1">Click "Add Renewal" to get started</p>
@@ -382,6 +383,11 @@ const Renewals: React.FC = () => {
                                                     {statusInfo.label}
                                                 </span>
                                             </td>
+                                            <td className="px-5 py-4">
+                                                <p className="text-sm text-gray-500 truncate max-w-[150px]" title={renewal.remark}>
+                                                    {renewal.remark || <span className="text-gray-300 text-xs">—</span>}
+                                                </p>
+                                            </td>
                                             <td className="px-5 py-4 text-right">
                                                 <div className="flex justify-end gap-1.5">
                                                     <button
@@ -408,21 +414,6 @@ const Renewals: React.FC = () => {
                     </table>
                 </div>
             </div>
-
-            {/* Remarks section for items with remarks */}
-            {filteredRenewals.some(r => r.remark) && (
-                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredRenewals.filter(r => r.remark).map(renewal => (
-                        <div key={`remark-${renewal.id}`} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded">{renewal.category}</span>
-                                <span className="text-xs text-gray-400">{renewal.provider}</span>
-                            </div>
-                            <p className="text-sm text-gray-600 italic">"{renewal.remark}"</p>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {/* Modal */}
             {isModalOpen && (

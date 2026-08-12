@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS categories (
  id INT AUTO_INCREMENT PRIMARY KEY,
  user_id INT,
  name VARCHAR(100),
- type ENUM('income','expense'),
+ type ENUM('income','expense','transfer'),
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -24,14 +24,18 @@ CREATE TABLE IF NOT EXISTS transactions (
  category_id INT,
  classification ENUM('personal', 'official') DEFAULT 'official',
  amount DECIMAL(10,2),
- type ENUM('income','expense','credit','debit'),
+ type ENUM('income','expense','transfer','credit','debit'),
  payment_method VARCHAR(50),
+ payment_account_id INT,
+ transfer_account_id INT,
  description TEXT,
  attachment VARCHAR(255),
  transaction_date DATE,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+ FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+ FOREIGN KEY (payment_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL,
+ FOREIGN KEY (transfer_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS todos (

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import { LoginRequest } from '../types';
+import { LoginRequest, RegisterRequest } from '../types';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -58,6 +58,26 @@ class ApiClient {
   private clearTokens() {
     this.accessToken = null;
     localStorage.removeItem('accessToken');
+  }
+
+  async register(data: RegisterRequest): Promise<any> {
+    const response = await this.client.post('/register', data);
+    const result = response.data;
+    
+    if (result && result.token) {
+      this.setTokens(result.token);
+      return {
+        data: {
+          user: {
+            id: result.id,
+            name: result.name,
+            email: result.email,
+            role: { name: typeof result.role === 'string' ? result.role : result.role?.name || typeof result.role }
+          }
+        }
+      };
+    }
+    return response.data;
   }
 
   async login(credentials: LoginRequest): Promise<any> {

@@ -20,6 +20,7 @@ const adminStatsRoutes = require('./routes/adminStatsRoutes');
 const adminTransactionRoutes = require('./routes/adminTransactionRoutes');
 const adminTaskRoutes = require('./routes/adminTaskRoutes');
 const adminTodoRoutes = require('./routes/adminTodoRoutes');
+const paymentAccountRoutes = require('./routes/paymentAccountRoutes');
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api/admin/stats', adminStatsRoutes);
 app.use('/api/admin/transactions', adminTransactionRoutes);
 app.use('/api/admin/tasks', adminTaskRoutes);
 app.use('/api/admin/todos', adminTodoRoutes);
+app.use('/api/payment-accounts', paymentAccountRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

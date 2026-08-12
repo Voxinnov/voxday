@@ -94,6 +94,7 @@ exports.generateMealPlan = async (req, res) => {
         let region = 'Indian';
 
         if (profile) {
+            console.log('Profile found for generation:', profile);
             const hm = profile.height_cm / 100;
             bmi = profile.weight_kg / (hm * hm);
             if (goal === 'Weight Loss') diet_type = 'weight_loss';
@@ -104,8 +105,10 @@ exports.generateMealPlan = async (req, res) => {
             if (!preference) preference = 'veg';
             region = profile.region || 'Indian';
         } else if (plan_type === 'BMI') {
+            console.log('BMI plan requested but no profile found');
             return res.status(400).json({ message: 'Profile required for BMI based plan' });
         } else {
+            console.log('No profile found, using defaults for non-BMI plan');
             if (goal === 'Weight Loss') diet_type = 'weight_loss';
             else if (goal === 'Weight Gain') diet_type = 'weight_gain';
             else diet_type = 'maintenance';
@@ -166,6 +169,7 @@ exports.generateMealPlan = async (req, res) => {
         }
 
         res.status(201).json({ message: 'Meal plan generated', plan_id: planId });
+		console.error("generateMealPlan Error:", error);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
@@ -174,6 +178,7 @@ exports.generateMealPlan = async (req, res) => {
 exports.getMealPlan = async (req, res) => {
     try {
         const userId = req.params.user_id === 'me' ? req.user.id : req.params.user_id;
+        console.log('getMealPlan hit for user_id:', userId);
         const [plans] = await db.query('SELECT * FROM meal_plans WHERE user_id = ? ORDER BY id DESC', [userId]);
         if (plans.length > 0) {
             const [items] = await db.query(`
@@ -187,6 +192,7 @@ exports.getMealPlan = async (req, res) => {
         } else {
             res.json(null); // No plans generated
         }
+		console.error("getMealPlan Error:", error);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }

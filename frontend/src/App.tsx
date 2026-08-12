@@ -9,6 +9,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Common Pages
 import Login from './pages/Login';
+import Register from './pages/Register';
 import DownloadApp from './pages/DownloadApp';
 
 // VOXdBOOK Pages
@@ -24,6 +25,9 @@ import DayPlanner from './pages/VOXdBOOK/DayPlanner/index';
 import Notes from './pages/VOXdBOOK/Notes';
 import VehicleManagement from './pages/VOXdBOOK/VehicleManagement';
 import GoalTracker from './pages/VOXdBOOK/GoalTracker';
+import PaymentAccounts from './pages/VOXdBOOK/PaymentAccounts';
+import AdminUsers from './pages/VOXdBOOK/AdminUsers';
+import TransactionList from './pages/VOXdBOOK/TransactionList';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -37,7 +41,7 @@ const queryClient = new QueryClient({
 });
 
 const App: React.FC = () => {
-  const { initialize, isInitialized } = useAuth();
+  const { initialize, isInitialized, isAuthenticated, updateLastActivity, checkInactivityTimeout } = useAuth();
 
   useEffect(() => {
     try {
@@ -47,7 +51,35 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Error initializing app:', error);
     }
-  }, []); // Run only once on mount
+  }, []);
+
+  // Track user activity and 10-minute inactivity timeout
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let lastUpdate = 0;
+    const handleUserActivity = () => {
+      const now = Date.now();
+      // Throttle updating activity timestamp to once every 5 seconds
+      if (now - lastUpdate > 5000) {
+        lastUpdate = now;
+        updateLastActivity();
+      }
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach(event => window.addEventListener(event, handleUserActivity));
+
+    // Periodically check for 10-minute inactivity
+    const intervalId = setInterval(() => {
+      checkInactivityTimeout();
+    }, 10000);
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, handleUserActivity));
+      clearInterval(intervalId);
+    };
+  }, [isAuthenticated, updateLastActivity, checkInactivityTimeout]);
 
   return (
     <ErrorBoundary>
@@ -56,6 +88,7 @@ const App: React.FC = () => {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/" element={<Navigate to="/voxdbook" replace />} />
 
             {/* Protected routes with Layout */}
@@ -75,6 +108,16 @@ const App: React.FC = () => {
                 <PrivateRoute>
                   <Layout>
                     <SmartTransactions />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/transaction-list"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <TransactionList />
                   </Layout>
                 </PrivateRoute>
               }
@@ -175,6 +218,26 @@ const App: React.FC = () => {
                 <PrivateRoute>
                   <Layout>
                     <VehicleManagement />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/payment-accounts"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <PaymentAccounts />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/admin/users"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <AdminUsers />
                   </Layout>
                 </PrivateRoute>
               }

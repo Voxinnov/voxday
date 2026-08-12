@@ -1,55 +1,31 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { RegisterRequest } from '../types';
 
-interface LoginForm {
-  email: string;
-  password: string;
-}
-
-const Login: React.FC = () => {
+const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading, isAuthenticated, isInitialized } = useAuth();
+  const { register: registerUser, isLoading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  // Redirect if already authenticated
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
-    }
-  }, [isAuthenticated, navigate, location]);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>();
+  } = useForm<RegisterRequest>();
 
-  const from = location.state?.from?.pathname || '/';
-
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: RegisterRequest) => {
     try {
-      await login(data);
-      toast.success('Login successful!');
-      navigate(from, { replace: true });
+      await registerUser(data);
+      toast.success('Registration successful!');
+      navigate('/voxdbook');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Login failed');
+      toast.error(error.response?.data?.message || 'Registration failed');
     }
   };
-
-  // Show loading while initializing
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -59,14 +35,28 @@ const Login: React.FC = () => {
             <span className="text-white font-bold text-xl">V</span>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to VOXdBOOK
+            Create your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Daybook Management System
+            Join VOXdBOOK Daybook Management System
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <form className="mt-8 space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="name" className="sr-only">
+                Full Name
+              </label>
+              <input
+                {...register('name', { required: 'Name is required' })}
+                type="text"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="Full Name"
+              />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+              )}
+            </div>
             <div>
               <label htmlFor="email" className="sr-only">
                 Email address
@@ -80,13 +70,23 @@ const Login: React.FC = () => {
                   },
                 })}
                 type="email"
-                autoComplete="email"
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
               />
               {errors.email && (
                 <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
+            </div>
+            <div>
+              <label htmlFor="phone" className="sr-only">
+                Phone Number (Optional)
+              </label>
+              <input
+                {...register('phone')}
+                type="tel"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
+                placeholder="Phone Number (Optional)"
+              />
             </div>
             <div className="relative">
               <label htmlFor="password" className="sr-only">
@@ -101,7 +101,6 @@ const Login: React.FC = () => {
                   },
                 })}
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
                 className="appearance-none rounded-none relative block w-full px-3 py-2 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
               />
@@ -132,8 +131,8 @@ const Login: React.FC = () => {
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5 mr-2" />
-                  Sign in
+                  <UserPlus className="w-5 h-5 mr-2" />
+                  Register
                 </>
               )}
             </button>
@@ -141,14 +140,10 @@ const Login: React.FC = () => {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="font-medium text-primary-600 hover:text-primary-500"
-              >
-                Register here
-              </button>
+              Already have an account?{' '}
+              <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
+                Sign in
+              </Link>
             </p>
           </div>
         </form>
@@ -157,4 +152,4 @@ const Login: React.FC = () => {
   );
 };
 
-export default Login;
+export default Register;
