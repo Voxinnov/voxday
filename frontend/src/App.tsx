@@ -28,6 +28,12 @@ import GoalTracker from './pages/VOXdBOOK/GoalTracker';
 import PaymentAccounts from './pages/VOXdBOOK/PaymentAccounts';
 import AdminUsers from './pages/VOXdBOOK/AdminUsers';
 import TransactionList from './pages/VOXdBOOK/TransactionList';
+import SmokeTracker from './pages/VOXdBOOK/SmokeTracker';
+import FuelManagement from './pages/VOXdBOOK/FuelManagement';
+import HomeExpenses from './pages/VOXdBOOK/HomeExpenses';
+import Trips from './pages/VOXdBOOK/Trips';
+import TripDetail from './pages/VOXdBOOK/TripDetail';
+import HospitalExpenses from './pages/VOXdBOOK/HospitalExpenses';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -218,6 +224,76 @@ const App: React.FC = () => {
                 <PrivateRoute>
                   <Layout>
                     <VehicleManagement />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/vehicle-management/fuel"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <FuelManagement />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/fuel"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <FuelManagement />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/home"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <HomeExpenses />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/trips"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <Trips />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/trips/:id"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <TripDetail />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/hospital"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <HospitalExpenses />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/smoke"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <SmokeTracker />
                   </Layout>
                 </PrivateRoute>
               }

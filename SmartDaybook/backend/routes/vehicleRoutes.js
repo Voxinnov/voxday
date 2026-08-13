@@ -6,7 +6,8 @@ const {
     getVehicleDetails,
     addService,
     addExpense,
-    addFuel
+    addFuel,
+    deleteVehicle
 } = require('../controllers/vehicleController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -15,7 +16,8 @@ router.route('/')
     .post(protect, createVehicle);
 
 router.route('/:id')
-    .get(protect, getVehicleDetails);
+    .get(protect, getVehicleDetails)
+    .delete(protect, deleteVehicle);
 
 router.route('/:id/services')
     .post(protect, addService);

@@ -29,6 +29,7 @@ interface PaymentAccount {
   account_type: AccountType;
   bank_name?: string;
   is_default: number;
+  current_balance?: number | string;
 }
 
 interface Transaction {
@@ -110,6 +111,14 @@ const TransactionList: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const accountMap = useMemo(() => new Map(paymentAccounts.map(a => [a.id, a])), [paymentAccounts]);
+
+  const totalCashBalance = useMemo(() => {
+    return paymentAccounts
+      .filter(a => a.account_type === 'cash')
+      .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
+  }, [paymentAccounts]);
 
   // Filter logic
   const filteredTransactions = useMemo(() => {
@@ -241,7 +250,7 @@ const TransactionList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BookOpen className="text-indigo-600" size={26} /> Daybook & Transaction List
           </h1>
-          <p className="text-gray-500 text-sm">View daily ledger accounts, income & expense registers</p>
+          <p className="text-gray-500 text-sm">View daily ledger accounts, cash balances & registers</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -279,7 +288,18 @@ const TransactionList: React.FC = () => {
       </div>
 
       {/* Summary KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">Total Cash Balance</p>
+            <p className="text-2xl font-black mt-1">₹{totalCashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-emerald-100/80 mt-0.5">Physical cash in hand</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center">
+            <Wallet size={24} />
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Income (Receipts)</p>
@@ -302,7 +322,7 @@ const TransactionList: React.FC = () => {
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Daybook Surplus</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Surplus</p>
             <p className={`text-2xl font-extrabold mt-1 ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
               {netBalance >= 0 ? '+' : ''}₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </p>
@@ -516,6 +536,11 @@ const TransactionList: React.FC = () => {
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                                     {ACCOUNT_ICONS[tx.account_type]}
                                     {tx.account_name}
+                                    {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
+                                      <span className="opacity-75 font-semibold text-[10px]">
+                                        (₹{Number(accountMap.get(tx.payment_account_id)?.current_balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })})
+                                      </span>
+                                    )}
                                   </span>
                                 ) : (
                                   <span className="text-gray-300 text-xs">—</span>
@@ -614,6 +639,11 @@ const TransactionList: React.FC = () => {
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                             {ACCOUNT_ICONS[tx.account_type]}
                             {tx.account_name}
+                            {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
+                              <span className="opacity-75 font-semibold text-[10px]">
+                                (₹{Number(accountMap.get(tx.payment_account_id)?.current_balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })})
+                              </span>
+                            )}
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>

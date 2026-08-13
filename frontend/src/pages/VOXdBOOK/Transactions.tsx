@@ -27,6 +27,7 @@ interface PaymentAccount {
   account_type: AccountType;
   bank_name?: string;
   is_default: number;
+  current_balance?: number | string;
 }
 
 interface Transaction {
@@ -80,6 +81,8 @@ const Transactions: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -94,6 +97,8 @@ const Transactions: React.FC = () => {
     type: 'expense' as 'income' | 'expense' | 'transfer',
     classification: 'personal' as 'personal' | 'official',
     category_id: '',
+    vehicle_id: '',
+    trip_id: '',
     payment_account_id: '',
     transfer_account_id: '',
     transaction_date: new Date().toISOString().split('T')[0],
@@ -103,7 +108,27 @@ const Transactions: React.FC = () => {
     fetchTransactions();
     fetchCategories();
     fetchPaymentAccounts();
+    fetchVehicles();
+    fetchTrips();
   }, []);
+
+  const fetchVehicles = async () => {
+    try {
+      const response = await api.get('/vehicles');
+      setVehicles(response.data?.data || response.data || []);
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+    }
+  };
+
+  const fetchTrips = async () => {
+    try {
+      const response = await api.get('/trips');
+      setTrips(response.data?.data || response.data || []);
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+    }
+  };
 
   const fetchTransactions = async () => {
     try {
@@ -159,6 +184,8 @@ const Transactions: React.FC = () => {
         type: tx.type,
         classification: tx.classification || 'personal',
         category_id: String(tx.category_id || ''),
+        vehicle_id: (tx as any).vehicle_id ? String((tx as any).vehicle_id) : '',
+        trip_id: (tx as any).trip_id ? String((tx as any).trip_id) : '',
         payment_account_id: tx.payment_account_id ? String(tx.payment_account_id) : '',
         transfer_account_id: tx.transfer_account_id ? String(tx.transfer_account_id) : '',
         transaction_date: new Date(tx.transaction_date).toISOString().split('T')[0],
@@ -172,6 +199,8 @@ const Transactions: React.FC = () => {
         type: 'expense',
         classification: 'personal',
         category_id: '',
+        vehicle_id: '',
+        trip_id: '',
         payment_account_id: defaultAcc ? String(defaultAcc.id) : (paymentAccounts[0] ? String(paymentAccounts[0].id) : ''),
         transfer_account_id: '',
         transaction_date: new Date().toISOString().split('T')[0],
@@ -207,6 +236,7 @@ const Transactions: React.FC = () => {
         payment_account_id: formData.payment_account_id ? Number(formData.payment_account_id) : null,
         transfer_account_id: formData.type === 'transfer' && formData.transfer_account_id ? Number(formData.transfer_account_id) : null,
         category_id: formData.category_id || null,
+        vehicle_id: formData.vehicle_id ? Number(formData.vehicle_id) : null,
       };
       if (editingTx) {
         await api.put(`/transactions/${editingTx.id}`, payload);
@@ -235,6 +265,35 @@ const Transactions: React.FC = () => {
       toast.success(`Category "${name}" added!`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create category.');
+    }
+  };
+
+  const handleQuickAddVehicle = async () => {
+    const name = window.prompt('Enter new vehicle name (e.g. Acha Car, Liva Diesel):');
+    if (!name || !name.trim()) return;
+
+    const number = window.prompt('Enter vehicle registration number (optional, e.g. KL38L6781):') || '';
+
+    try {
+      const res = await api.post('/vehicles', {
+        name: name.trim(),
+        number: number.trim(),
+        type: 'Car',
+        brand: '',
+        model: '',
+        year: new Date().getFullYear(),
+        fuel_type: 'Petrol',
+        current_odometer: 0
+      });
+
+      toast.success(`Vehicle "${name.trim()}" added!`);
+      const newVehId = res.data?.vehicleId;
+      await fetchVehicles();
+      if (newVehId) {
+        setFormData(prev => ({ ...prev, vehicle_id: String(newVehId) }));
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to add vehicle.');
     }
   };
 
@@ -435,6 +494,50 @@ const Transactions: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Vehicle Field (Optional) */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Vehicle (Optional)</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.vehicle_id}
+                      onChange={e => setFormData({ ...formData, vehicle_id: e.target.value })}
+                      className="flex-1 py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                    >
+                      <option value="">Select Vehicle (Optional)</option>
+                      {vehicles.map((v: any) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} {v.number ? `(${v.number})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleQuickAddVehicle}
+                      className="px-3.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl transition-colors flex items-center justify-center font-bold text-lg"
+                      title="Quick Add Vehicle"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Trip Field (Optional) */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Trip (Optional)</label>
+                  <select
+                    value={formData.trip_id}
+                    onChange={e => setFormData({ ...formData, trip_id: e.target.value })}
+                    className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all font-semibold text-gray-800"
+                  >
+                    <option value="">Select Trip (Optional)</option>
+                    {trips.map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        ✈️ {t.name} ({t.destination})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Description */}
@@ -509,9 +612,9 @@ const Transactions: React.FC = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className="font-bold text-sm truncate">{acc.account_name}</p>
-                                {acc.bank_name && (
-                                  <p className="text-xs opacity-75 truncate">{acc.bank_name}</p>
-                                )}
+                                <p className="text-[11px] font-semibold opacity-90 truncate">
+                                  Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </p>
                               </div>
                             </div>
                             {isSelected && (
@@ -554,9 +657,9 @@ const Transactions: React.FC = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className="font-bold text-sm truncate">{acc.account_name}</p>
-                                {acc.bank_name && (
-                                  <p className="text-xs opacity-75 truncate">{acc.bank_name}</p>
-                                )}
+                                <p className="text-[11px] font-semibold opacity-90 truncate">
+                                  Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </p>
                               </div>
                             </div>
                             {isSelected && (
@@ -591,9 +694,9 @@ const Transactions: React.FC = () => {
                           </div>
                           <div className="min-w-0">
                             <p className="font-bold text-sm truncate">{acc.account_name}</p>
-                            {acc.bank_name && (
-                              <p className="text-xs opacity-75 truncate">{acc.bank_name}</p>
-                            )}
+                            <p className="text-[11px] font-semibold opacity-90 truncate">
+                              Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">

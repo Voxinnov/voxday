@@ -18,6 +18,20 @@ CREATE TABLE IF NOT EXISTS categories (
  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS payment_accounts (
+ id INT AUTO_INCREMENT PRIMARY KEY,
+ user_id INT,
+ account_name VARCHAR(100) NOT NULL,
+ account_type ENUM('cash', 'bank', 'upi', 'credit_card', 'bank_transfer') NOT NULL,
+ bank_name VARCHAR(100),
+ account_number VARCHAR(50),
+ upi_id VARCHAR(100),
+ initial_balance DECIMAL(10,2) DEFAULT 0.00,
+ is_default TINYINT(1) DEFAULT 0,
+ created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS transactions (
  id INT AUTO_INCREMENT PRIMARY KEY,
  user_id INT,

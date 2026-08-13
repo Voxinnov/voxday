@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Car, Plus, Settings, Fuel as FuelIcon, Receipt, Shield, Phone, Truck, AlertTriangle } from 'lucide-react';
+import { Car, Plus, Settings, Fuel as FuelIcon, Receipt, Shield, Phone, Truck, AlertTriangle, Trash2 } from 'lucide-react';
 import api from '../../services/smartApi';
 import toast from 'react-hot-toast';
 
@@ -84,6 +84,18 @@ const VehicleManagement: React.FC = () => {
         }
     };
 
+    const resetVehicleForm = () => {
+        setVehicleForm({
+            name: '', number: '', type: 'Car', brand: '', model: '', year: new Date().getFullYear(),
+            fuel_type: 'Petrol', insurance_expiry: '', rc_expiry: '', pollution_expiry: '', purchase_date: '', current_odometer: ''
+        });
+    };
+
+    const openAddVehicleModal = () => {
+        resetVehicleForm();
+        setIsAddVehicleOpen(true);
+    };
+
     const handleCreateVehicle = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -92,10 +104,30 @@ const VehicleManagement: React.FC = () => {
                 current_odometer: Number(vehicleForm.current_odometer)
             });
             toast.success("Vehicle Added Successfully!");
+            resetVehicleForm();
             setIsAddVehicleOpen(false);
             fetchVehicles();
         } catch (err) {
             toast.error("Failed to add vehicle");
+        }
+    };
+
+    const handleDeleteVehicle = async (vehicleId: number, vehicleName: string) => {
+        if (!window.confirm(`Are you sure you want to delete "${vehicleName}" from your garage? This will also remove its associated fuel logs, service logs, and expense records.`)) {
+            return;
+        }
+
+        try {
+            await api.delete(`/vehicles/${vehicleId}`);
+            toast.success(`Vehicle "${vehicleName}" deleted successfully!`);
+            const updated = vehicles.filter(v => v.id !== vehicleId);
+            setVehicles(updated);
+            if (activeVehicle?.id === vehicleId) {
+                setActiveVehicle(updated.length > 0 ? updated[0] : null);
+            }
+        } catch (err) {
+            console.error('Error deleting vehicle:', err);
+            toast.error("Failed to delete vehicle");
         }
     };
 
@@ -188,7 +220,7 @@ const VehicleManagement: React.FC = () => {
                         Garage
                     </h1>
                     <button
-                        onClick={() => setIsAddVehicleOpen(true)}
+                        onClick={openAddVehicleModal}
                         className="mt-4 w-full bg-indigo-50 text-indigo-600 py-2.5 rounded-lg font-medium hover:bg-indigo-100 flex justify-center items-center gap-2 transition-colors"
                     >
                         <Plus size={18} /> Add New Vehicle
@@ -205,13 +237,28 @@ const VehicleManagement: React.FC = () => {
                         <div
                             key={v.id}
                             onClick={() => setActiveVehicle(v)}
-                            className={`p-4 rounded-xl border transition-all cursor-pointer ${activeVehicle?.id === v.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
+                            className={`p-4 rounded-xl border transition-all cursor-pointer relative group ${activeVehicle?.id === v.id ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-gray-200 hover:border-indigo-300'}`}
                         >
-                            <div className="flex justify-between items-start mb-1">
+                            <div className="flex justify-between items-start mb-1 pr-6">
                                 <h3 className="font-semibold">{v.name}</h3>
                                 <span className={`text-xs px-2 py-1 rounded-md bg-white/20 ${activeVehicle?.id !== v.id && 'bg-gray-100 text-gray-600'}`}>{v.type}</span>
                             </div>
                             <p className={`text-sm tracking-wider font-medium ${activeVehicle?.id === v.id ? 'text-indigo-100' : 'text-gray-500'}`}>{v.number}</p>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteVehicle(v.id, v.name);
+                                }}
+                                className={`absolute top-3.5 right-3 p-1.5 rounded-lg transition-colors ${
+                                    activeVehicle?.id === v.id
+                                        ? 'text-indigo-200 hover:text-white hover:bg-indigo-700'
+                                        : 'text-gray-400 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                                title="Delete Vehicle"
+                            >
+                                <Trash2 size={15} />
+                            </button>
                         </div>
                     ))}
                 </div>
@@ -224,19 +271,29 @@ const VehicleManagement: React.FC = () => {
                         {/* Header Details */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div>
-                                <h2 className="text-3xl font-bold text-gray-900 mb-1">{activeVehicle.brand} {activeVehicle.model}</h2>
+                                <h2 className="text-3xl font-bold text-gray-900 mb-1">{activeVehicle.name || `${activeVehicle.brand} ${activeVehicle.model}`}</h2>
                                 <p className="text-gray-500 font-medium tracking-wide flex items-center gap-2">
                                     <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">{activeVehicle.number}</span> • {activeVehicle.year} • {activeVehicle.fuel_type}
                                 </p>
                             </div>
-                            <div className="flex gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100 min-w-[200px]">
-                                <div className="p-2 bg-white rounded-lg shadow-sm">
-                                    <Settings className="text-gray-400" size={24} />
+                            <div className="flex items-center gap-3">
+                                <div className="flex gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100 min-w-[180px]">
+                                    <div className="p-2 bg-white rounded-lg shadow-sm">
+                                        <Settings className="text-gray-400" size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Odometer</p>
+                                        <p className="font-bold text-gray-900">{activeVehicle.current_odometer ? activeVehicle.current_odometer.toLocaleString() : 0} km</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Odometer</p>
-                                    <p className="font-bold text-gray-900">{activeVehicle.current_odometer.toLocaleString()} km</p>
-                                </div>
+                                <button
+                                    onClick={() => handleDeleteVehicle(activeVehicle.id, activeVehicle.name)}
+                                    className="px-3.5 py-3 text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                                    title="Delete Vehicle"
+                                >
+                                    <Trash2 size={16} />
+                                    <span className="hidden sm:inline">Delete Vehicle</span>
+                                </button>
                             </div>
                         </div>
 

@@ -14,6 +14,9 @@ const dayPlannerRoutes = require('./routes/dayPlannerRoutes');
 const noteRoutes = require('./routes/noteRoutes');
 const vehicleRoutes = require('./routes/vehicleRoutes');
 const goalRoutes = require('./routes/goalRoutes');
+const smokeRoutes = require('./routes/smokeRoutes');
+const tripRoutes = require('./routes/tripRoutes');
+const hospitalRoutes = require('./routes/hospitalRoutes');
 const adminCategoryRoutes = require('./routes/adminCategoryRoutes');
 const adminUserRoutes = require('./routes/adminUserRoutes');
 const adminStatsRoutes = require('./routes/adminStatsRoutes');
@@ -39,6 +42,9 @@ app.use('/api/dayplanner', dayPlannerRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/goals', goalRoutes);
+app.use('/api/smoke', smokeRoutes);
+app.use('/api/trips', tripRoutes);
+app.use('/api/hospital', hospitalRoutes);
 
 // Admin routes
 app.use('/api/admin/categories', adminCategoryRoutes);

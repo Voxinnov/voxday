@@ -15,6 +15,8 @@ interface PaymentAccount {
   bank_name?: string;
   account_number?: string;
   upi_id?: string;
+  initial_balance?: number | string;
+  current_balance?: number | string;
   is_default: number;
   created_at: string;
 }
@@ -58,6 +60,7 @@ const emptyForm = {
   bank_name: '',
   account_number: '',
   upi_id: '',
+  initial_balance: '0',
   is_default: false,
 };
 
@@ -93,6 +96,7 @@ const PaymentAccounts: React.FC = () => {
         bank_name: account.bank_name || '',
         account_number: account.account_number || '',
         upi_id: account.upi_id || '',
+        initial_balance: String(account.initial_balance ?? 0),
         is_default: !!account.is_default,
       });
     } else {
@@ -112,11 +116,15 @@ const PaymentAccounts: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = {
+        ...formData,
+        initial_balance: parseFloat(formData.initial_balance) || 0
+      };
       if (editingId) {
-        await api.put(`/payment-accounts/${editingId}`, formData);
+        await api.put(`/payment-accounts/${editingId}`, payload);
         toast.success('Account updated');
       } else {
-        await api.post('/payment-accounts', formData);
+        await api.post('/payment-accounts', payload);
         toast.success('Account added');
       }
       await fetchAccounts();
@@ -151,13 +159,20 @@ const PaymentAccounts: React.FC = () => {
 
   const type = formData.account_type;
 
+  const totalCashBalance = accounts
+    .filter(a => a.account_type === 'cash')
+    .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
+
+  const totalAllBalance = accounts
+    .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
+
   return (
     <div className="p-6 lg:p-8 min-h-screen bg-gray-50 animate-fade-in">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
+      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payment Accounts</h1>
-          <p className="text-gray-500 text-sm">Manage your cash, bank, UPI & card accounts</p>
+          <h1 className="text-2xl font-bold text-gray-900">Payment Accounts & Cash Balance</h1>
+          <p className="text-gray-500 text-sm">Manage your cash, bank, UPI & card account tallies</p>
         </div>
         <button
           onClick={() => openModal()}
@@ -167,16 +182,47 @@ const PaymentAccounts: React.FC = () => {
         </button>
       </header>
 
+      {/* Balance Summary KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-100">Total Cash Balance</p>
+            <h2 className="text-3xl font-extrabold mt-1">₹{totalCashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h2>
+            <p className="text-xs text-emerald-100/80 mt-0.5">Physical Cash in hand across all cash accounts</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+            <Wallet size={28} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Accounts Balance</p>
+            <h2 className="text-3xl font-extrabold text-gray-900 mt-1">₹{totalAllBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Overall balance tally across Cash, Bank, UPI & Cards</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Landmark size={28} />
+          </div>
+        </div>
+      </div>
+
       {/* Account Type Summary Row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
         {(Object.keys(ACCOUNT_TYPE_META) as AccountType[]).map(t => {
           const meta = ACCOUNT_TYPE_META[t];
-          const count = accounts.filter(a => a.account_type === t).length;
+          const typeAccounts = accounts.filter(a => a.account_type === t);
+          const count = typeAccounts.length;
+          const typeBalance = typeAccounts.reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
+
           return (
             <div key={t} className={`rounded-xl border p-4 flex flex-col items-center gap-1 ${meta.bg}`}>
               <span className={meta.color}>{meta.icon}</span>
               <span className="text-xs font-semibold text-gray-700 text-center">{meta.label}</span>
-              <span className={`text-xl font-bold ${meta.color}`}>{count}</span>
+              <span className={`text-lg font-extrabold ${meta.color}`}>
+                ₹{typeBalance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-[10px] text-gray-400 font-medium">{count} {count === 1 ? 'account' : 'accounts'}</span>
             </div>
           );
         })}
@@ -197,6 +243,8 @@ const PaymentAccounts: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {accounts.map(account => {
             const meta = ACCOUNT_TYPE_META[account.account_type];
+            const currBalance = Number(account.current_balance || 0);
+
             return (
               <div
                 key={account.id}
@@ -217,6 +265,39 @@ const PaymentAccounts: React.FC = () => {
 
                 {/* Account Name */}
                 <h3 className="text-lg font-bold text-gray-900 mb-1">{account.account_name}</h3>
+
+                {/* Balance Card Tally */}
+                <div className={`my-3 p-3.5 rounded-xl border ${
+                  account.account_type === 'cash' ? 'bg-emerald-50/90 border-emerald-200' :
+                  account.account_type === 'bank' ? 'bg-blue-50/90 border-blue-200' :
+                  account.account_type === 'credit_card' ? 'bg-rose-50/90 border-rose-200' :
+                  account.account_type === 'upi' ? 'bg-violet-50/90 border-violet-200' :
+                  'bg-amber-50/90 border-amber-200'
+                }`}>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-600 flex items-center justify-between">
+                    <span>
+                      {account.account_type === 'cash' ? '💵 Cash Balance' :
+                       account.account_type === 'bank' ? '🏦 Current Bank Balance' :
+                       account.account_type === 'credit_card' ? '💳 Outstanding Balance' :
+                       account.account_type === 'upi' ? '📱 UPI Balance' : 'Current Balance'}
+                    </span>
+                  </p>
+                  <p className={`text-2xl font-black mt-1 ${
+                    currBalance < 0 ? 'text-red-600' :
+                    account.account_type === 'cash' ? 'text-emerald-700' :
+                    account.account_type === 'bank' ? 'text-blue-700' :
+                    account.account_type === 'credit_card' ? 'text-rose-700' :
+                    account.account_type === 'upi' ? 'text-violet-700' :
+                    'text-amber-700'
+                  }`}>
+                    ₹{currBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                  {Number(account.initial_balance || 0) > 0 && (
+                    <p className="text-[11px] text-gray-500 font-medium mt-1">
+                      Opening Balance: ₹{Number(account.initial_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
 
                 {/* Details */}
                 <div className="space-y-0.5 text-sm text-gray-500 mb-4">
@@ -299,11 +380,30 @@ const PaymentAccounts: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder={type === 'cash' ? 'e.g. Petty Cash' : type === 'upi' ? 'e.g. GPay' : type === 'credit_card' ? 'e.g. HDFC Credit Card' : 'e.g. SBI Savings'}
+                  placeholder={type === 'cash' ? 'e.g. Petty Cash / Main Cash' : type === 'upi' ? 'e.g. GPay' : type === 'credit_card' ? 'e.g. HDFC Credit Card' : 'e.g. SBI Savings'}
                   value={formData.account_name}
                   onChange={e => setFormData(f => ({ ...f, account_name: e.target.value }))}
                   className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+              </div>
+
+              {/* Initial / Opening Balance */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Initial / Opening Balance (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.initial_balance}
+                    onChange={e => setFormData(f => ({ ...f, initial_balance: e.target.value }))}
+                    className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Starting cash balance when account was created</p>
               </div>
 
               {/* Bank Name — for bank, credit_card, bank_transfer */}

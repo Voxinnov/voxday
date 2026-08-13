@@ -1,11 +1,20 @@
 const db = require('../config/db');
 
 // @desc    Get all payment accounts for user
-// @route   GET /api/payment-accounts
 exports.getPaymentAccounts = async (req, res) => {
     try {
         const [accounts] = await db.query(
-            'SELECT * FROM payment_accounts WHERE user_id = ? ORDER BY is_default DESC, created_at ASC',
+            `SELECT pa.*,
+                (
+                    COALESCE(pa.initial_balance, 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
+                ) AS current_balance
+             FROM payment_accounts pa
+             WHERE pa.user_id = ?
+             ORDER BY pa.is_default DESC, pa.created_at ASC`,
             [req.user.id]
         );
         res.json(accounts);
@@ -17,7 +26,7 @@ exports.getPaymentAccounts = async (req, res) => {
 // @desc    Create a payment account
 // @route   POST /api/payment-accounts
 exports.createPaymentAccount = async (req, res) => {
-    const { account_name, account_type, bank_name, account_number, upi_id, is_default } = req.body;
+    const { account_name, account_type, bank_name, account_number, upi_id, initial_balance, is_default } = req.body;
 
     if (!account_name || !account_type) {
         return res.status(400).json({ message: 'Account name and type are required' });
@@ -33,11 +42,22 @@ exports.createPaymentAccount = async (req, res) => {
         }
 
         const [result] = await db.query(
-            'INSERT INTO payment_accounts (user_id, account_name, account_type, bank_name, account_number, upi_id, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [req.user.id, account_name, account_type, bank_name || null, account_number || null, upi_id || null, is_default ? 1 : 0]
+            'INSERT INTO payment_accounts (user_id, account_name, account_type, bank_name, account_number, upi_id, initial_balance, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.user.id, account_name, account_type, bank_name || null, account_number || null, upi_id || null, initial_balance || 0.00, is_default ? 1 : 0]
         );
 
-        const [newAccount] = await db.query('SELECT * FROM payment_accounts WHERE id = ?', [result.insertId]);
+        const [newAccount] = await db.query(
+            `SELECT pa.*,
+                (
+                    COALESCE(pa.initial_balance, 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
+                ) AS current_balance
+             FROM payment_accounts pa WHERE pa.id = ?`,
+            [result.insertId]
+        );
         res.status(201).json(newAccount[0]);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -47,7 +67,7 @@ exports.createPaymentAccount = async (req, res) => {
 // @desc    Update a payment account
 // @route   PUT /api/payment-accounts/:id
 exports.updatePaymentAccount = async (req, res) => {
-    const { account_name, account_type, bank_name, account_number, upi_id, is_default } = req.body;
+    const { account_name, account_type, bank_name, account_number, upi_id, initial_balance, is_default } = req.body;
 
     try {
         // Verify ownership
@@ -68,11 +88,22 @@ exports.updatePaymentAccount = async (req, res) => {
         }
 
         await db.query(
-            'UPDATE payment_accounts SET account_name = ?, account_type = ?, bank_name = ?, account_number = ?, upi_id = ?, is_default = ? WHERE id = ? AND user_id = ?',
-            [account_name, account_type, bank_name || null, account_number || null, upi_id || null, is_default ? 1 : 0, req.params.id, req.user.id]
+            'UPDATE payment_accounts SET account_name = ?, account_type = ?, bank_name = ?, account_number = ?, upi_id = ?, initial_balance = ?, is_default = ? WHERE id = ? AND user_id = ?',
+            [account_name, account_type, bank_name || null, account_number || null, upi_id || null, initial_balance || 0.00, is_default ? 1 : 0, req.params.id, req.user.id]
         );
 
-        const [updated] = await db.query('SELECT * FROM payment_accounts WHERE id = ?', [req.params.id]);
+        const [updated] = await db.query(
+            `SELECT pa.*,
+                (
+                    COALESCE(pa.initial_balance, 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
+                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
+                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
+                ) AS current_balance
+             FROM payment_accounts pa WHERE pa.id = ?`,
+            [req.params.id]
+        );
         res.json(updated[0]);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });

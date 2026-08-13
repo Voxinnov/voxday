@@ -114,11 +114,33 @@ const addFuel = async (req, res) => {
     }
 };
 
+const deleteVehicle = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { id } = req.params;
+
+        const [vehicles] = await pool.query('SELECT * FROM vehicles WHERE id = ? AND user_id = ?', [id, userId]);
+        if (vehicles.length === 0) return res.status(404).json({ success: false, message: 'Vehicle not found' });
+
+        await pool.query('DELETE FROM vehicle_services WHERE vehicle_id = ?', [id]);
+        await pool.query('DELETE FROM vehicle_expenses WHERE vehicle_id = ?', [id]);
+        await pool.query('DELETE FROM vehicle_fuels WHERE vehicle_id = ?', [id]);
+        await pool.query('UPDATE transactions SET vehicle_id = NULL WHERE vehicle_id = ?', [id]);
+        await pool.query('DELETE FROM vehicles WHERE id = ? AND user_id = ?', [id, userId]);
+
+        res.json({ success: true, message: 'Vehicle deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting vehicle:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     getVehicles,
     createVehicle,
     getVehicleDetails,
     addService,
     addExpense,
-    addFuel
+    addFuel,
+    deleteVehicle
 };
