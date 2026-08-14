@@ -536,6 +536,11 @@ const TransactionList: React.FC = () => {
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                                     {ACCOUNT_ICONS[tx.account_type]}
                                     {tx.account_name}
+                                    {tx.account_type === 'upi' && (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                                      <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                                        🏦 {accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name}
+                                      </span>
+                                    )}
                                     {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
                                       <span className="opacity-75 font-semibold text-[10px]">
                                         (₹{Number(accountMap.get(tx.payment_account_id)?.current_balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })})
@@ -639,6 +644,11 @@ const TransactionList: React.FC = () => {
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                             {ACCOUNT_ICONS[tx.account_type]}
                             {tx.account_name}
+                            {tx.account_type === 'upi' && (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                              <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                                🏦 {accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name}
+                              </span>
+                            )}
                             {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
                               <span className="opacity-75 font-semibold text-[10px]">
                                 (₹{Number(accountMap.get(tx.payment_account_id)?.current_balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })})

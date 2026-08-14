@@ -53,7 +53,7 @@ const HospitalExpenses: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<string>('all');
   const [selectedHospital, setSelectedHospital] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
-  const [dateRange, setDateRange] = useState<'all' | 'today' | 'this_week' | 'this_month' | 'custom'>('this_month');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'this_week' | 'this_month' | 'custom'>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 

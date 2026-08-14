@@ -34,6 +34,7 @@ import HomeExpenses from './pages/VOXdBOOK/HomeExpenses';
 import Trips from './pages/VOXdBOOK/Trips';
 import TripDetail from './pages/VOXdBOOK/TripDetail';
 import HospitalExpenses from './pages/VOXdBOOK/HospitalExpenses';
+import HospitalFollowUp from './pages/VOXdBOOK/HospitalFollowUp';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -284,6 +285,16 @@ const App: React.FC = () => {
                 <PrivateRoute>
                   <Layout>
                     <HospitalExpenses />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/voxdbook/hospital/follow-up"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <HospitalFollowUp />
                   </Layout>
                 </PrivateRoute>
               }

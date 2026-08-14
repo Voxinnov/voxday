@@ -58,7 +58,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Payment Accounts', href: '/voxdbook/payment-accounts', icon: Wallet },
     { name: 'Home', href: '/voxdbook/home', icon: Home },
     { name: 'Trips', href: '/voxdbook/trips', icon: Plane },
-    { name: 'Hospital', href: '/voxdbook/hospital', icon: Stethoscope },
+    {
+      name: 'Hospital',
+      href: '/voxdbook/hospital',
+      icon: Stethoscope,
+      children: [
+        { name: 'Follow Up', href: '/voxdbook/hospital/follow-up', icon: Clock }
+      ]
+    },
     { name: 'Renewal Reminder', href: '/voxdbook/renewals', icon: RefreshCw },
     { name: 'Reminder', href: '/voxdbook/reminders', icon: BellRing },
     { name: 'Tasks', href: '/voxdbook/tasks', icon: CheckSquare },

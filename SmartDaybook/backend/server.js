@@ -17,6 +17,7 @@ const goalRoutes = require('./routes/goalRoutes');
 const smokeRoutes = require('./routes/smokeRoutes');
 const tripRoutes = require('./routes/tripRoutes');
 const hospitalRoutes = require('./routes/hospitalRoutes');
+const hospitalFollowupRoutes = require('./routes/hospitalFollowupRoutes');
 const adminCategoryRoutes = require('./routes/adminCategoryRoutes');
 const adminUserRoutes = require('./routes/adminUserRoutes');
 const adminStatsRoutes = require('./routes/adminStatsRoutes');
@@ -28,7 +29,8 @@ const paymentAccountRoutes = require('./routes/paymentAccountRoutes');
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.use('/api', authRoutes);
 app.use('/api/categories', categoryRoutes);

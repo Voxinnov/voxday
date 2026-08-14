@@ -420,6 +420,79 @@ const PaymentAccounts: React.FC = () => {
                 </div>
               )}
 
+              {/* Linked Bank Account — Multi-select for UPI */}
+              {type === 'upi' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5 flex items-center justify-between">
+                    <span>Bank Name (Linked Bank Account)</span>
+                    <span className="text-[11px] font-medium text-indigo-600">Select existing bank account(s)</span>
+                  </label>
+
+                  {(() => {
+                    const availableBankAccounts = accounts.filter(a => (a.account_type === 'bank' || a.account_type === 'bank_transfer' || a.account_type === 'credit_card') && a.id !== editingId);
+                    const selectedBanks = formData.bank_name ? formData.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+                    const toggleBank = (bankName: string) => {
+                      let updated: string[];
+                      if (selectedBanks.includes(bankName)) {
+                        updated = selectedBanks.filter(b => b !== bankName);
+                      } else {
+                        updated = [...selectedBanks, bankName];
+                      }
+                      setFormData(f => ({ ...f, bank_name: updated.join(', ') }));
+                    };
+
+                    return (
+                      <div className="space-y-2">
+                        {availableBankAccounts.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1.5 font-medium">Click to select from your existing bank accounts:</p>
+                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2.5 bg-gray-50 border border-gray-200 rounded-xl">
+                              {availableBankAccounts.map(bAcc => {
+                                const bLabel = bAcc.account_name;
+                                const isChecked = selectedBanks.includes(bLabel);
+                                return (
+                                  <button
+                                    key={bAcc.id}
+                                    type="button"
+                                    onClick={() => toggleBank(bLabel)}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                      isChecked
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-200'
+                                        : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50'
+                                    }`}
+                                  >
+                                    <span>🏦 {bLabel}</span>
+                                    {isChecked ? <Check size={13} /> : <Plus size={13} className="opacity-60" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                            No bank accounts found in your account list. Type custom bank name below or add a Bank account first.
+                          </p>
+                        )}
+
+                        <div>
+                          <input
+                            type="text"
+                            placeholder="Selected bank accounts or type custom (e.g. Vishnu Mohan Fed, SBI Savings)"
+                            value={formData.bank_name}
+                            onChange={e => setFormData(f => ({ ...f, bank_name: e.target.value }))}
+                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-1">
+                            Select bank accounts above or edit comma-separated bank account names.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* Account Number — for bank, credit_card */}
               {(type === 'bank' || type === 'credit_card') && (
                 <div>

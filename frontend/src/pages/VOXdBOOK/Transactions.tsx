@@ -26,6 +26,7 @@ interface PaymentAccount {
   account_name: string;
   account_type: AccountType;
   bank_name?: string;
+  upi_id?: string;
   is_default: number;
   current_balance?: number | string;
 }
@@ -41,9 +42,14 @@ interface Transaction {
   payment_account_id?: number | null;
   account_name?: string;
   account_type?: AccountType;
+  bank_name?: string;
+  upi_id?: string;
+  payment_method?: string;
   transfer_account_id?: number | null;
   transfer_account_name?: string;
   transfer_account_type?: AccountType;
+  transfer_bank_name?: string;
+  transfer_upi_id?: string;
   transaction_date: string;
 }
 
@@ -101,6 +107,7 @@ const Transactions: React.FC = () => {
     trip_id: '',
     payment_account_id: '',
     transfer_account_id: '',
+    payment_method: '',
     transaction_date: new Date().toISOString().split('T')[0],
   });
 
@@ -188,6 +195,7 @@ const Transactions: React.FC = () => {
         trip_id: (tx as any).trip_id ? String((tx as any).trip_id) : '',
         payment_account_id: tx.payment_account_id ? String(tx.payment_account_id) : '',
         transfer_account_id: tx.transfer_account_id ? String(tx.transfer_account_id) : '',
+        payment_method: (tx as any).payment_method || '',
         transaction_date: new Date(tx.transaction_date).toISOString().split('T')[0],
       });
     } else {
@@ -203,6 +211,7 @@ const Transactions: React.FC = () => {
         trip_id: '',
         payment_account_id: defaultAcc ? String(defaultAcc.id) : (paymentAccounts[0] ? String(paymentAccounts[0].id) : ''),
         transfer_account_id: '',
+        payment_method: '',
         transaction_date: new Date().toISOString().split('T')[0],
       });
     }
@@ -694,9 +703,15 @@ const Transactions: React.FC = () => {
                           </div>
                           <div className="min-w-0">
                             <p className="font-bold text-sm truncate">{acc.account_name}</p>
-                            <p className="text-[11px] font-semibold opacity-90 truncate">
-                              Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                            </p>
+                            {acc.account_type === 'upi' && acc.bank_name ? (
+                              <p className="text-[10px] font-bold text-violet-700 truncate flex items-center gap-1">
+                                <Landmark size={10} /> Bank: {acc.bank_name}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] font-semibold opacity-90 truncate">
+                                Bal: ₹{Number(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -716,6 +731,82 @@ const Transactions: React.FC = () => {
                   })}
                 </div>
               )}
+
+              {/* Dynamic Corresponding Bank Sync Selector when UPI account is selected */}
+              {(() => {
+                const selectedAcc = paymentAccounts.find(a => String(a.id) === formData.payment_account_id);
+                if (!selectedAcc || selectedAcc.account_type !== 'upi') return null;
+
+                const linkedBanks = selectedAcc.bank_name ? selectedAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+                const currentSelectedBank = formData.payment_method || (linkedBanks.length > 0 ? linkedBanks[0] : '');
+
+                return (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-violet-50 to-indigo-50 border-2 border-violet-200 rounded-2xl shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-violet-900 font-bold text-sm">
+                        <Smartphone size={18} className="text-violet-600" />
+                        <span>UPI Account Selected: <span className="text-indigo-700 font-black">{selectedAcc.account_name}</span></span>
+                        {selectedAcc.upi_id && (
+                          <span className="text-xs font-mono bg-violet-200/80 text-violet-800 px-2 py-0.5 rounded-md font-semibold">
+                            {selectedAcc.upi_id}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <Check size={12} /> Bank Synced
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 bg-white rounded-xl border border-violet-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Landmark size={15} className="text-indigo-600" />
+                          <span>Choose Bank for this Transaction *</span>
+                        </label>
+                        <a
+                          href="/voxdbook/payment-accounts"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-indigo-600 hover:underline font-bold"
+                        >
+                          Edit Linked List &rarr;
+                        </a>
+                      </div>
+
+                      {linkedBanks.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {linkedBanks.map(bankName => {
+                            const isSelected = currentSelectedBank === bankName;
+                            return (
+                              <button
+                                key={bankName}
+                                type="button"
+                                onClick={() => setFormData(f => ({ ...f, payment_method: bankName }))}
+                                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-200'
+                                    : 'bg-indigo-50/60 text-indigo-950 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-100/70'
+                                }`}
+                              >
+                                <span>🏦 {bankName}</span>
+                                {isSelected && (
+                                  <span className="w-4 h-4 rounded-full bg-white text-indigo-600 flex items-center justify-center">
+                                    <Check size={11} />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800">
+                          ⚠️ No linked bank accounts set for {selectedAcc.account_name}. You can edit this account in Payment Accounts to link bank accounts.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Submit Action Bar */}
@@ -860,6 +951,11 @@ const Transactions: React.FC = () => {
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                         {ACCOUNT_ICONS[tx.account_type]}
                         {tx.account_name}
+                        {tx.account_type === 'upi' && tx.bank_name && (
+                          <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                            🏦 {tx.bank_name}
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-gray-300 text-xs">—</span>

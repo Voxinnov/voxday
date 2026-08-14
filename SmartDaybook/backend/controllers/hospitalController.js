@@ -21,6 +21,48 @@ exports.getHospitalRecords = async (req, res) => {
     try {
         const userId = req.user.id;
 
+        // Auto-sync any transactions with Hospital/Medical/Doctor categories missing from hospital_records
+        const [missingTxs] = await db.query(`
+            SELECT t.*, c.name as category_name
+            FROM transactions t
+            JOIN categories c ON t.category_id = c.id
+            LEFT JOIN hospital_records h ON h.transaction_id = t.id
+            WHERE t.user_id = ?
+              AND h.id IS NULL
+              AND (
+                LOWER(c.name) LIKE '%hospital%' 
+                OR LOWER(c.name) LIKE '%medical%' 
+                OR LOWER(c.name) LIKE '%doctor%'
+                OR LOWER(c.name) LIKE '%clinic%'
+                OR LOWER(c.name) LIKE '%health%'
+                OR LOWER(c.name) LIKE '%pharmacy%'
+                OR LOWER(c.name) LIKE '%medicine%'
+              )
+        `, [userId]);
+
+        for (const tx of missingTxs) {
+            let patient_name = 'General';
+            let hospital_name = 'Hospital';
+            let expense_type = tx.category_name || 'Hospital';
+            let notes = tx.description || null;
+
+            if (tx.description) {
+                const match = tx.description.match(/^(.*?)\s*-\s*(.*?)\s*\((.*?)\)$/);
+                if (match) {
+                    expense_type = match[1].trim() || expense_type;
+                    patient_name = match[2].trim() || patient_name;
+                    hospital_name = match[3].trim() || hospital_name;
+                } else if (tx.description.trim()) {
+                    notes = tx.description.trim();
+                }
+            }
+
+            await db.query(`
+                INSERT INTO hospital_records (user_id, transaction_id, patient_name, hospital_name, visit_date, expense_type, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [userId, tx.id, patient_name, hospital_name, tx.transaction_date, expense_type, notes]);
+        }
+
         const [records] = await db.query(
             `SELECT h.*,
                     COALESCE(t.amount, 0) as amount,
