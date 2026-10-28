@@ -16,11 +16,12 @@ exports.getAllCategoriesAdmin = async (req, res) => {
 // @desc    Update a category (Any)
 // @route   PUT /api/admin/categories/:id
 exports.updateCategoryAdmin = async (req, res) => {
-    const { name, type } = req.body;
+    const { name, type, sub_category } = req.body;
+    const subCat = (sub_category && sub_category.trim()) ? sub_category.trim().toLowerCase() : 'general';
     try {
         const [result] = await db.query(
-            'UPDATE categories SET name = ?, type = ? WHERE id = ?',
-            [name, type, req.params.id]
+            'UPDATE categories SET name = ?, type = ?, sub_category = ? WHERE id = ?',
+            [name, type, subCat, req.params.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Category not found' });
         res.json({ message: 'Category updated successfully (Admin)' });

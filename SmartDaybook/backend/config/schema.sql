@@ -10,46 +10,48 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS categories (
- id INT AUTO_INCREMENT PRIMARY KEY,
- user_id INT,
- name VARCHAR(100),
- type ENUM('income','expense','transfer'),
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  name VARCHAR(100),
+  type ENUM('income','expense','transfer'),
+  sub_category VARCHAR(50) DEFAULT 'general',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS payment_accounts (
- id INT AUTO_INCREMENT PRIMARY KEY,
- user_id INT,
- account_name VARCHAR(100) NOT NULL,
- account_type ENUM('cash', 'bank', 'upi', 'credit_card', 'bank_transfer') NOT NULL,
- bank_name VARCHAR(100),
- account_number VARCHAR(50),
- upi_id VARCHAR(100),
- initial_balance DECIMAL(10,2) DEFAULT 0.00,
- is_default TINYINT(1) DEFAULT 0,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  account_name VARCHAR(100) NOT NULL,
+  account_type ENUM('cash', 'bank', 'upi', 'credit_card', 'bank_transfer') NOT NULL,
+  bank_name VARCHAR(100),
+  account_number VARCHAR(50),
+  upi_id VARCHAR(100),
+  initial_balance DECIMAL(10,2) DEFAULT 0.00,
+  is_default TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
- id INT AUTO_INCREMENT PRIMARY KEY,
- user_id INT,
- category_id INT,
- classification ENUM('personal', 'official') DEFAULT 'official',
- amount DECIMAL(10,2),
- type ENUM('income','expense','transfer','credit','debit'),
- payment_method VARCHAR(50),
- payment_account_id INT,
- transfer_account_id INT,
- description TEXT,
- attachment VARCHAR(255),
- transaction_date DATE,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
- FOREIGN KEY (payment_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL,
- FOREIGN KEY (transfer_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  category_id INT,
+  classification ENUM('personal', 'official') DEFAULT 'official',
+  amount DECIMAL(10,2),
+  type ENUM('income','expense','transfer','credit','debit'),
+  sub_category VARCHAR(50) DEFAULT 'general',
+  payment_method VARCHAR(50),
+  payment_account_id INT,
+  transfer_account_id INT,
+  description TEXT,
+  attachment VARCHAR(255),
+  transaction_date DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+  FOREIGN KEY (payment_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL,
+  FOREIGN KEY (transfer_account_id) REFERENCES payment_accounts(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS todos (

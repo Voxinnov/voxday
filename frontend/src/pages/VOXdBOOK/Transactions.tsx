@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Search,
@@ -14,7 +14,9 @@ import {
   ArrowLeftRight,
   ArrowLeft,
   Check,
-  DollarSign
+  DollarSign,
+  PiggyBank,
+  TrendingUp
 } from 'lucide-react';
 import api from '../../services/smartApi';
 import toast from 'react-hot-toast';
@@ -28,6 +30,7 @@ interface PaymentAccount {
   bank_name?: string;
   upi_id?: string;
   is_default: number;
+  initial_balance?: number | string;
   current_balance?: number | string;
 }
 
@@ -36,6 +39,7 @@ interface Transaction {
   description: string;
   amount: number | string;
   type: 'income' | 'expense' | 'transfer';
+  sub_category?: string;
   classification: 'personal' | 'official';
   category_id?: string | number;
   category_name?: string;
@@ -50,12 +54,15 @@ interface Transaction {
   transfer_account_type?: AccountType;
   transfer_bank_name?: string;
   transfer_upi_id?: string;
+  transfer_payment_method?: string;
   transaction_date: string;
 }
 
 interface Category {
   id: number;
   name: string;
+  type?: string;
+  sub_category?: string;
 }
 
 const ACCOUNT_ICONS: Record<AccountType, React.ReactNode> = {
@@ -96,11 +103,13 @@ const Transactions: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAccount, setFilterAccount] = useState<string>('');
   const [filterClassification, setFilterClassification] = useState<string>('');
+  const [filterSubCategory, setFilterSubCategory] = useState<string>('');
 
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     type: 'expense' as 'income' | 'expense' | 'transfer',
+    sub_category: 'general',
     classification: 'personal' as 'personal' | 'official',
     category_id: '',
     vehicle_id: '',
@@ -108,6 +117,7 @@ const Transactions: React.FC = () => {
     payment_account_id: '',
     transfer_account_id: '',
     payment_method: '',
+    transfer_payment_method: '',
     transaction_date: new Date().toISOString().split('T')[0],
   });
 
@@ -173,45 +183,163 @@ const Transactions: React.FC = () => {
       tx.category_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.account_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.transfer_account_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesAccount = filterAccount
-      ? String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount
-      : true;
+
+    let matchesAccount = true;
+    if (filterAccount) {
+      const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+      const isDirect = String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount;
+
+      let isLinkedUpi = false;
+      if (selectedAccObj && selectedAccObj.account_type !== 'upi') {
+        const bankAccName = selectedAccObj.account_name.toLowerCase();
+        const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+
+        if (tx.account_type === 'upi') {
+          const chosenBank = (tx.payment_method || (tx.bank_name ? tx.bank_name.split(',')[0].trim() : '')).toLowerCase();
+          if (chosenBank === bankAccName || (bankNameAttr !== '' && chosenBank === bankNameAttr)) {
+            isLinkedUpi = true;
+          }
+        }
+
+        if (tx.transfer_account_type === 'upi' || tx.transfer_bank_name) {
+          const chosenTransferBank = ((tx as any).transfer_payment_method || (tx.transfer_bank_name ? tx.transfer_bank_name.split(',')[0].trim() : '')).toLowerCase();
+          if (chosenTransferBank === bankAccName || (bankNameAttr !== '' && chosenTransferBank === bankNameAttr)) {
+            isLinkedUpi = true;
+          }
+        }
+      }
+      matchesAccount = isDirect || isLinkedUpi;
+    }
+
     const matchesClassification = filterClassification
       ? tx.classification === filterClassification
       : true;
-    return matchesSearch && matchesAccount && matchesClassification;
+
+    const matchesSubCategory = filterSubCategory
+      ? tx.sub_category === filterSubCategory
+      : true;
+
+    return matchesSearch && matchesAccount && matchesClassification && matchesSubCategory;
   });
+
+  // Auto-sync payment_method & transfer_payment_method to default bank when UPI account changes
+  useEffect(() => {
+    if (!formData.payment_account_id) return;
+    const selectedAcc = paymentAccounts.find(a => String(a.id) === formData.payment_account_id);
+    if (selectedAcc && selectedAcc.account_type === 'upi') {
+      const linkedBanks = selectedAcc.bank_name ? selectedAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (linkedBanks.length > 0) {
+        const isValid = linkedBanks.some(b => b.toLowerCase() === formData.payment_method.trim().toLowerCase());
+        if (!isValid) {
+          setFormData(prev => ({ ...prev, payment_method: linkedBanks[0] }));
+        }
+      }
+    }
+  }, [formData.payment_account_id, paymentAccounts]);
+
+  useEffect(() => {
+    if (formData.type !== 'transfer' || !formData.transfer_account_id) return;
+    const selectedToAcc = paymentAccounts.find(a => String(a.id) === formData.transfer_account_id);
+    if (selectedToAcc && selectedToAcc.account_type === 'upi') {
+      const toLinkedBanks = selectedToAcc.bank_name ? selectedToAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      if (toLinkedBanks.length > 0) {
+        const isValid = toLinkedBanks.some(b => b.toLowerCase() === formData.transfer_payment_method.trim().toLowerCase());
+        if (!isValid) {
+          setFormData(prev => ({ ...prev, transfer_payment_method: toLinkedBanks[0] }));
+        }
+      }
+    }
+  }, [formData.type, formData.transfer_account_id, paymentAccounts]);
+
+  const handleSelectPaymentAccount = (accId: string) => {
+    const selectedAcc = paymentAccounts.find(a => String(a.id) === accId);
+    let newPaymentMethod = '';
+    if (selectedAcc && selectedAcc.account_type === 'upi') {
+      const linkedBanks = selectedAcc.bank_name ? selectedAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      newPaymentMethod = linkedBanks.length > 0 ? linkedBanks[0] : '';
+    }
+    setFormData(prev => ({
+      ...prev,
+      payment_account_id: accId,
+      payment_method: newPaymentMethod
+    }));
+  };
+
+  const handleSelectTransferAccount = (toAccId: string) => {
+    const selectedToAcc = paymentAccounts.find(a => String(a.id) === toAccId);
+    let newTransferPaymentMethod = '';
+    if (selectedToAcc && selectedToAcc.account_type === 'upi') {
+      const toLinkedBanks = selectedToAcc.bank_name ? selectedToAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      newTransferPaymentMethod = toLinkedBanks.length > 0 ? toLinkedBanks[0] : '';
+    }
+    setFormData(prev => ({
+      ...prev,
+      transfer_account_id: toAccId,
+      transfer_payment_method: newTransferPaymentMethod
+    }));
+  };
 
   const handleOpenForm = (tx: Transaction | null = null) => {
     if (tx) {
       setEditingTx(tx);
+
+      const acc = paymentAccounts.find(a => String(a.id) === String(tx.payment_account_id));
+      let initialPaymentMethod = (tx as any).payment_method || '';
+      if (acc && acc.account_type === 'upi') {
+        const linkedBanks = acc.bank_name ? acc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!initialPaymentMethod || !linkedBanks.some(b => b.toLowerCase() === initialPaymentMethod.toLowerCase() || initialPaymentMethod.toLowerCase().includes(b.toLowerCase()))) {
+          initialPaymentMethod = linkedBanks[0] || '';
+        }
+      }
+
+      const toAcc = paymentAccounts.find(a => String(a.id) === String(tx.transfer_account_id));
+      let initialTransferPaymentMethod = (tx as any).transfer_payment_method || '';
+      if (toAcc && toAcc.account_type === 'upi') {
+        const toLinkedBanks = toAcc.bank_name ? toAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!initialTransferPaymentMethod || !toLinkedBanks.some(b => b.toLowerCase() === initialTransferPaymentMethod.toLowerCase() || initialTransferPaymentMethod.toLowerCase().includes(b.toLowerCase()))) {
+          initialTransferPaymentMethod = toLinkedBanks[0] || '';
+        }
+      }
+
       setFormData({
         description: tx.description,
         amount: String(tx.amount),
         type: tx.type,
+        sub_category: tx.sub_category || 'general',
         classification: tx.classification || 'personal',
         category_id: String(tx.category_id || ''),
         vehicle_id: (tx as any).vehicle_id ? String((tx as any).vehicle_id) : '',
         trip_id: (tx as any).trip_id ? String((tx as any).trip_id) : '',
         payment_account_id: tx.payment_account_id ? String(tx.payment_account_id) : '',
         transfer_account_id: tx.transfer_account_id ? String(tx.transfer_account_id) : '',
-        payment_method: (tx as any).payment_method || '',
+        payment_method: initialPaymentMethod,
+        transfer_payment_method: initialTransferPaymentMethod,
         transaction_date: new Date(tx.transaction_date).toISOString().split('T')[0],
       });
     } else {
       setEditingTx(null);
       const defaultAcc = paymentAccounts.find(a => a.is_default);
+      const defaultAccId = defaultAcc ? String(defaultAcc.id) : (paymentAccounts[0] ? String(paymentAccounts[0].id) : '');
+      const selectedAcc = paymentAccounts.find(a => String(a.id) === defaultAccId);
+      let defaultPaymentMethod = '';
+      if (selectedAcc && selectedAcc.account_type === 'upi') {
+        const linkedBanks = selectedAcc.bank_name ? selectedAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+        defaultPaymentMethod = linkedBanks.length > 0 ? linkedBanks[0] : '';
+      }
+
       setFormData({
         description: '',
         amount: '',
         type: 'expense',
+        sub_category: 'general',
         classification: 'personal',
         category_id: '',
         vehicle_id: '',
         trip_id: '',
-        payment_account_id: defaultAcc ? String(defaultAcc.id) : (paymentAccounts[0] ? String(paymentAccounts[0].id) : ''),
+        payment_account_id: defaultAccId,
         transfer_account_id: '',
-        payment_method: '',
+        payment_method: defaultPaymentMethod,
+        transfer_payment_method: '',
         transaction_date: new Date().toISOString().split('T')[0],
       });
     }
@@ -240,8 +368,18 @@ const Transactions: React.FC = () => {
 
     setSaving(true);
     try {
+      const selectedAcc = paymentAccounts.find(a => String(a.id) === formData.payment_account_id);
+      const linkedBanks = selectedAcc?.bank_name ? selectedAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const effectivePaymentMethod = formData.payment_method || (selectedAcc?.account_type === 'upi' && linkedBanks.length > 0 ? linkedBanks[0] : formData.payment_method);
+
+      const selectedToAcc = paymentAccounts.find(a => String(a.id) === formData.transfer_account_id);
+      const toLinkedBanks = selectedToAcc?.bank_name ? selectedToAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const effectiveTransferPaymentMethod = formData.transfer_payment_method || (selectedToAcc?.account_type === 'upi' && toLinkedBanks.length > 0 ? toLinkedBanks[0] : formData.transfer_payment_method);
+
       const payload = {
         ...formData,
+        payment_method: effectivePaymentMethod,
+        transfer_payment_method: formData.type === 'transfer' ? effectiveTransferPaymentMethod : null,
         payment_account_id: formData.payment_account_id ? Number(formData.payment_account_id) : null,
         transfer_account_id: formData.type === 'transfer' && formData.transfer_account_id ? Number(formData.transfer_account_id) : null,
         category_id: formData.category_id || null,
@@ -263,14 +401,33 @@ const Transactions: React.FC = () => {
     }
   };
 
+  const handleCategorySelect = (catId: string) => {
+    const selectedCat = categories.find(c => String(c.id) === String(catId));
+    const subCat = selectedCat?.sub_category || 'general';
+    setFormData(prev => ({
+      ...prev,
+      category_id: catId,
+      sub_category: subCat
+    }));
+  };
+
   const handleQuickAddCategory = async () => {
     const name = window.prompt('Enter new category name:');
     if (!name || !name.trim()) return;
+    const isInvest = window.confirm(`Is "${name.trim()}" an Investment category (e.g., Chitty, SIP, FD)?`);
     try {
-      const response = await api.post('/categories', { name: name.trim(), type: formData.type });
+      const response = await api.post('/categories', {
+        name: name.trim(),
+        type: formData.type,
+        sub_category: isInvest ? 'investment' : 'general'
+      });
       const newCategory = response.data;
       setCategories([...categories, newCategory]);
-      setFormData({ ...formData, category_id: String(newCategory.id) });
+      setFormData({
+        ...formData,
+        category_id: String(newCategory.id),
+        sub_category: isInvest ? 'investment' : 'general'
+      });
       toast.success(`Category "${name}" added!`);
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create category.');
@@ -321,16 +478,54 @@ const Transactions: React.FC = () => {
   const totalIncome = filteredTransactions
     .reduce((sum, t) => {
       if (t.type === 'income') return sum + Number(t.amount);
-      if (t.type === 'transfer' && filterAccount && String(t.transfer_account_id) === filterAccount) return sum + Number(t.amount);
+      if (t.type === 'transfer' && filterAccount) {
+        const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+        if (String(t.transfer_account_id) === filterAccount) return sum + Number(t.amount);
+        if (selectedAccObj && selectedAccObj.account_type !== 'upi' && ((t as any).transfer_account_type === 'upi' || (t as any).transfer_bank_name)) {
+          const chosenTransferBank = ((t as any).transfer_payment_method || (t as any).transfer_bank_name?.split(',')[0]?.trim() || '').toLowerCase();
+          const bankAccName = selectedAccObj.account_name.toLowerCase();
+          const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+          if (chosenTransferBank !== '' && (chosenTransferBank === bankAccName || (bankNameAttr !== '' && chosenTransferBank === bankNameAttr))) {
+            return sum + Number(t.amount);
+          }
+        }
+      }
       return sum;
     }, 0);
 
   const totalExpense = filteredTransactions
     .reduce((sum, t) => {
       if (t.type === 'expense') return sum + Number(t.amount);
-      if (t.type === 'transfer' && filterAccount && String(t.payment_account_id) === filterAccount) return sum + Number(t.amount);
+      if (t.type === 'transfer' && filterAccount) {
+        const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+        if (String(t.payment_account_id) === filterAccount) return sum + Number(t.amount);
+        if (selectedAccObj && selectedAccObj.account_type !== 'upi' && t.account_type === 'upi') {
+          const chosenBank = ((t as any).payment_method || t.bank_name?.split(',')[0]?.trim() || '').toLowerCase();
+          const bankAccName = selectedAccObj.account_name.toLowerCase();
+          const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+          if (chosenBank !== '' && (chosenBank === bankAccName || (bankNameAttr !== '' && chosenBank === bankNameAttr))) {
+            return sum + Number(t.amount);
+          }
+        }
+      }
       return sum;
     }, 0);
+
+  const totalInvestment = filteredTransactions
+    .reduce((sum, t) => {
+      if (t.type === 'expense' && t.sub_category === 'investment') return sum + Number(t.amount);
+      return sum;
+    }, 0);
+
+  const openingBalance = useMemo(() => {
+    if (filterAccount) {
+      const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+      return Number(selectedAccObj?.initial_balance || 0);
+    }
+    return paymentAccounts.reduce((sum, acc) => sum + Number(acc.initial_balance || 0), 0);
+  }, [filterAccount, paymentAccounts]);
+
+  const netBalance = openingBalance + totalIncome - totalExpense;
 
   /* ==========================================
      RENDER FULL FORM PAGE
@@ -471,12 +666,14 @@ const Transactions: React.FC = () => {
                   <div className="flex gap-2">
                     <select
                       value={formData.category_id}
-                      onChange={e => setFormData({ ...formData, category_id: e.target.value })}
+                      onChange={e => handleCategorySelect(e.target.value)}
                       className="flex-1 py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                     >
                       <option value="">{formData.type === 'transfer' ? 'Account Transfer' : 'Select Category'}</option>
                       {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} {cat.sub_category === 'investment' ? ' (Investment)' : ''}
+                        </option>
                       ))}
                     </select>
                     <button
@@ -489,6 +686,21 @@ const Transactions: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Sub Category Field (Investment) */}
+                {formData.type === 'expense' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Sub Category</label>
+                    <select
+                      value={formData.sub_category}
+                      onChange={e => setFormData({ ...formData, sub_category: e.target.value })}
+                      className="w-full py-3 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                    >
+                      <option value="general">General / Regular Expense</option>
+                      <option value="investment">Investment (Chitty, SIP, FD, etc.)</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Date Field */}
                 <div>
@@ -610,7 +822,7 @@ const Transactions: React.FC = () => {
                             key={acc.id}
                             type="button"
                             disabled={isOtherSelected}
-                            onClick={() => setFormData({ ...formData, payment_account_id: String(acc.id) })}
+                            onClick={() => handleSelectPaymentAccount(String(acc.id))}
                             className={`flex items-center justify-between p-4 rounded-xl border-2 text-left transition-all relative ${colorClass} ${
                               isOtherSelected ? 'opacity-40 cursor-not-allowed' : ''
                             }`}
@@ -655,7 +867,7 @@ const Transactions: React.FC = () => {
                             key={acc.id}
                             type="button"
                             disabled={isOtherSelected}
-                            onClick={() => setFormData({ ...formData, transfer_account_id: String(acc.id) })}
+                            onClick={() => handleSelectTransferAccount(String(acc.id))}
                             className={`flex items-center justify-between p-4 rounded-xl border-2 text-left transition-all relative ${colorClass} ${
                               isOtherSelected ? 'opacity-40 cursor-not-allowed' : ''
                             }`}
@@ -694,7 +906,7 @@ const Transactions: React.FC = () => {
                       <button
                         key={acc.id}
                         type="button"
-                        onClick={() => setFormData({ ...formData, payment_account_id: String(acc.id) })}
+                        onClick={() => handleSelectPaymentAccount(String(acc.id))}
                         className={`flex items-center justify-between p-4 rounded-xl border-2 text-left transition-all relative ${colorClass}`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
@@ -776,7 +988,7 @@ const Transactions: React.FC = () => {
                       {linkedBanks.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pt-1">
                           {linkedBanks.map(bankName => {
-                            const isSelected = currentSelectedBank === bankName;
+                            const isSelected = currentSelectedBank.trim().toLowerCase() === bankName.trim().toLowerCase();
                             return (
                               <button
                                 key={bankName}
@@ -801,6 +1013,83 @@ const Transactions: React.FC = () => {
                       ) : (
                         <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800">
                           ⚠️ No linked bank accounts set for {selectedAcc.account_name}. You can edit this account in Payment Accounts to link bank accounts.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Dynamic Bank Sync Selector for Target (To) Account in Transfer mode */}
+              {(() => {
+                if (formData.type !== 'transfer') return null;
+                const selectedToAcc = paymentAccounts.find(a => String(a.id) === formData.transfer_account_id);
+                if (!selectedToAcc || selectedToAcc.account_type !== 'upi') return null;
+
+                const linkedBanks = selectedToAcc.bank_name ? selectedToAcc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+                const currentSelectedBank = formData.transfer_payment_method || (linkedBanks.length > 0 ? linkedBanks[0] : '');
+
+                return (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                        <Smartphone size={18} className="text-emerald-600" />
+                        <span>Transfer Target UPI Account: <span className="text-emerald-800 font-black">{selectedToAcc.account_name}</span></span>
+                        {selectedToAcc.upi_id && (
+                          <span className="text-xs font-mono bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-md font-semibold">
+                            {selectedToAcc.upi_id}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <Check size={12} /> Target Bank Synced
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 bg-white rounded-xl border border-emerald-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Landmark size={15} className="text-emerald-600" />
+                          <span>Choose Receiving Bank for this Transfer *</span>
+                        </label>
+                        <a
+                          href="/voxdbook/payment-accounts"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-emerald-600 hover:underline font-bold"
+                        >
+                          Edit Linked List &rarr;
+                        </a>
+                      </div>
+
+                      {linkedBanks.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {linkedBanks.map(bankName => {
+                            const isSelected = currentSelectedBank.trim().toLowerCase() === bankName.trim().toLowerCase();
+                            return (
+                              <button
+                                key={bankName}
+                                type="button"
+                                onClick={() => setFormData(f => ({ ...f, transfer_payment_method: bankName }))}
+                                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-200'
+                                    : 'bg-emerald-50/60 text-emerald-950 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100/70'
+                                }`}
+                              >
+                                <span>🏦 {bankName}</span>
+                                {isSelected && (
+                                  <span className="w-4 h-4 rounded-full bg-white text-emerald-600 flex items-center justify-center">
+                                    <Check size={11} />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800">
+                          ⚠️ No linked bank accounts set for {selectedToAcc.account_name}. You can edit this account in Payment Accounts to link bank accounts.
                         </div>
                       )}
                     </div>
@@ -858,20 +1147,32 @@ const Transactions: React.FC = () => {
       </header>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Income</p>
-          <p className="text-2xl font-bold text-green-600">₹{totalIncome.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-green-600">₹{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Total Expense</p>
-          <p className="text-2xl font-bold text-red-500">₹{totalExpense.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-red-500">₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-emerald-100 p-4 shadow-sm bg-gradient-to-br from-white to-emerald-50/40">
+          <p className="text-xs text-emerald-800 font-medium uppercase tracking-wide mb-1 flex items-center gap-1">
+            <PiggyBank size={14} className="text-emerald-600" /> Total Investment
+          </p>
+          <p className="text-2xl font-bold text-emerald-700">₹{totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Tracked from Expense section</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Net Balance</p>
-          <p className={`text-2xl font-bold ${totalIncome - totalExpense >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
-            ₹{(totalIncome - totalExpense).toLocaleString()}
+          <p className={`text-2xl font-bold ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
+            ₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </p>
+          {openingBalance !== 0 && (
+            <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+              (Opening ₹{openingBalance.toLocaleString('en-IN', { minimumFractionDigits: 0 })} + Income ₹{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 0 })} - Expense ₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 0 })})
+            </p>
+          )}
         </div>
       </div>
 
@@ -895,6 +1196,15 @@ const Transactions: React.FC = () => {
           <option value="">All Classifications (Personal & Official)</option>
           <option value="personal">Personal</option>
           <option value="official">Official</option>
+        </select>
+        <select
+          className="py-2 px-3 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+          value={filterSubCategory}
+          onChange={e => setFilterSubCategory(e.target.value)}
+        >
+          <option value="">All Sub-Categories</option>
+          <option value="investment">Investment Only</option>
+          <option value="general">General Expenses Only</option>
         </select>
         <select
           className="py-2 px-3 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -936,24 +1246,45 @@ const Transactions: React.FC = () => {
                   </td>
                   <td className="px-5 py-4 text-sm font-semibold text-gray-900">{tx.description}</td>
                   <td className="px-5 py-4">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
-                      <Tag size={11} /> {tx.category_name || 'General'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                        <Tag size={11} /> {tx.category_name || 'General'}
+                      </span>
+                      {tx.sub_category === 'investment' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+                          <TrendingUp size={10} /> Investment
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     {tx.type === 'transfer' ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                        <span>{tx.account_name || 'Account'}</span>
+                        <span>
+                          {tx.account_name || 'Account'}
+                          {tx.account_type === 'upi' && (tx.payment_method || tx.bank_name) && (
+                            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                              🏦 {tx.payment_method || tx.bank_name?.split(',')[0]?.trim()}
+                            </span>
+                          )}
+                        </span>
                         <ArrowLeftRight size={12} className="text-amber-600 flex-shrink-0" />
-                        <span>{tx.transfer_account_name || 'Account'}</span>
+                        <span>
+                          {tx.transfer_account_name || 'Account'}
+                          {tx.transfer_account_type === 'upi' && ((tx as any).transfer_payment_method || tx.transfer_bank_name) && (
+                            <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950">
+                              🏦 {(tx as any).transfer_payment_method || tx.transfer_bank_name?.split(',')[0]?.trim()}
+                            </span>
+                          )}
+                        </span>
                       </span>
                     ) : tx.account_name && tx.account_type ? (
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                         {ACCOUNT_ICONS[tx.account_type]}
                         {tx.account_name}
-                        {tx.account_type === 'upi' && tx.bank_name && (
+                        {tx.account_type === 'upi' && (tx.payment_method || tx.bank_name) && (
                           <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
-                            🏦 {tx.bank_name}
+                            🏦 {tx.payment_method || tx.bank_name?.split(',')[0]?.trim()}
                           </span>
                         )}
                       </span>
@@ -969,7 +1300,17 @@ const Transactions: React.FC = () => {
                   <td className="px-5 py-4 text-right text-sm font-bold whitespace-nowrap">
                     {tx.type === 'expense' ? (
                       <span className="text-red-600">₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    ) : tx.type === 'transfer' && filterAccount === String(tx.payment_account_id) ? (
+                    ) : tx.type === 'transfer' && filterAccount && (
+                        filterAccount === String(tx.payment_account_id) ||
+                        (() => {
+                          const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+                          if (!selectedAccObj || selectedAccObj.account_type === 'upi' || tx.account_type !== 'upi') return false;
+                          const chosenBank = (tx.payment_method || (tx.bank_name ? tx.bank_name.split(',')[0].trim() : '')).toLowerCase();
+                          const bankAccName = selectedAccObj.account_name.toLowerCase();
+                          const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+                          return chosenBank === bankAccName || (bankNameAttr !== '' && chosenBank === bankNameAttr);
+                        })()
+                      ) ? (
                       <span className="text-amber-700 font-bold" title="Transfer Out">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     ) : (
                       <span className="text-gray-300 font-normal">—</span>
@@ -978,7 +1319,17 @@ const Transactions: React.FC = () => {
                   <td className="px-5 py-4 text-right text-sm font-bold whitespace-nowrap">
                     {tx.type === 'income' ? (
                       <span className="text-green-600">₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    ) : tx.type === 'transfer' && filterAccount === String(tx.transfer_account_id) ? (
+                    ) : tx.type === 'transfer' && filterAccount && (
+                        filterAccount === String(tx.transfer_account_id) ||
+                        (() => {
+                          const selectedAccObj = paymentAccounts.find(a => String(a.id) === filterAccount);
+                          if (!selectedAccObj || selectedAccObj.account_type === 'upi' || (tx.transfer_account_type !== 'upi' && !tx.transfer_bank_name)) return false;
+                          const chosenTransferBank = ((tx as any).transfer_payment_method || (tx.transfer_bank_name ? tx.transfer_bank_name.split(',')[0].trim() : '')).toLowerCase();
+                          const bankAccName = selectedAccObj.account_name.toLowerCase();
+                          const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+                          return chosenTransferBank === bankAccName || (bankNameAttr !== '' && chosenTransferBank === bankNameAttr);
+                        })()
+                      ) ? (
                       <span className="text-amber-700 font-bold" title="Transfer In">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     ) : tx.type === 'transfer' && !filterAccount ? (
                       <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-xs px-2 py-0.5 bg-amber-50 rounded border border-amber-200">

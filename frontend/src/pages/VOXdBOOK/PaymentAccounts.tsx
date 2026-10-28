@@ -164,6 +164,7 @@ const PaymentAccounts: React.FC = () => {
     .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
   const totalAllBalance = accounts
+    .filter(a => a.account_type !== 'upi')
     .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
 
   return (
@@ -199,7 +200,7 @@ const PaymentAccounts: React.FC = () => {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Accounts Balance</p>
             <h2 className="text-3xl font-extrabold text-gray-900 mt-1">₹{totalAllBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Overall balance tally across Cash, Bank, UPI & Cards</p>
+            <p className="text-xs text-gray-500 mt-0.5">Overall balance tally across Cash, Bank Accounts & Cards</p>
           </div>
           <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <Landmark size={28} />
@@ -279,7 +280,7 @@ const PaymentAccounts: React.FC = () => {
                       {account.account_type === 'cash' ? '💵 Cash Balance' :
                        account.account_type === 'bank' ? '🏦 Current Bank Balance' :
                        account.account_type === 'credit_card' ? '💳 Outstanding Balance' :
-                       account.account_type === 'upi' ? '📱 UPI Balance' : 'Current Balance'}
+                       account.account_type === 'upi' ? '📱 UPI Activity Tally' : 'Current Balance'}
                     </span>
                   </p>
                   <p className={`text-2xl font-black mt-1 ${

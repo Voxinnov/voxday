@@ -1,18 +1,82 @@
 const db = require('../config/db');
 
+const ACCOUNT_BALANCE_SQL = `
+    SELECT pa.*,
+        (
+            COALESCE(pa.initial_balance, 0)
+            + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
+            + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
+            + COALESCE((
+                SELECT SUM(t.amount)
+                FROM transactions t
+                JOIN payment_accounts pa_upi ON t.payment_account_id = pa_upi.id
+                WHERE pa_upi.account_type = 'upi'
+                  AND pa.account_type != 'upi'
+                  AND t.type = 'income'
+                  AND (
+                    TRIM(t.payment_method) = pa.account_name OR (pa.bank_name IS NOT NULL AND TRIM(t.payment_method) = pa.bank_name)
+                    OR (
+                      (t.payment_method IS NULL OR TRIM(t.payment_method) = '')
+                      AND (pa.account_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1)) OR (pa.bank_name IS NOT NULL AND pa.bank_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1))))
+                    )
+                  )
+              ), 0)
+            + COALESCE((
+                SELECT SUM(t.amount)
+                FROM transactions t
+                JOIN payment_accounts pa_upi ON t.transfer_account_id = pa_upi.id
+                WHERE pa_upi.account_type = 'upi'
+                  AND pa.account_type != 'upi'
+                  AND t.type = 'transfer'
+                  AND (
+                    TRIM(t.transfer_payment_method) = pa.account_name OR (pa.bank_name IS NOT NULL AND TRIM(t.transfer_payment_method) = pa.bank_name)
+                    OR (
+                      (t.transfer_payment_method IS NULL OR TRIM(t.transfer_payment_method) = '')
+                      AND (pa.account_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1)) OR (pa.bank_name IS NOT NULL AND pa.bank_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1))))
+                    )
+                  )
+              ), 0)
+            - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
+            - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
+            - COALESCE((
+                SELECT SUM(t.amount)
+                FROM transactions t
+                JOIN payment_accounts pa_upi ON t.payment_account_id = pa_upi.id
+                WHERE pa_upi.account_type = 'upi'
+                  AND pa.account_type != 'upi'
+                  AND t.type = 'expense'
+                  AND (
+                    TRIM(t.payment_method) = pa.account_name OR (pa.bank_name IS NOT NULL AND TRIM(t.payment_method) = pa.bank_name)
+                    OR (
+                      (t.payment_method IS NULL OR TRIM(t.payment_method) = '')
+                      AND (pa.account_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1)) OR (pa.bank_name IS NOT NULL AND pa.bank_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1))))
+                    )
+                  )
+              ), 0)
+            - COALESCE((
+                SELECT SUM(t.amount)
+                FROM transactions t
+                JOIN payment_accounts pa_upi ON t.payment_account_id = pa_upi.id
+                WHERE pa_upi.account_type = 'upi'
+                  AND pa.account_type != 'upi'
+                  AND t.type = 'transfer'
+                  AND (
+                    TRIM(t.payment_method) = pa.account_name OR (pa.bank_name IS NOT NULL AND TRIM(t.payment_method) = pa.bank_name)
+                    OR (
+                      (t.payment_method IS NULL OR TRIM(t.payment_method) = '')
+                      AND (pa.account_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1)) OR (pa.bank_name IS NOT NULL AND pa.bank_name = TRIM(SUBSTRING_INDEX(pa_upi.bank_name, ',', 1))))
+                    )
+                  )
+              ), 0)
+        ) AS current_balance
+    FROM payment_accounts pa
+`;
+
 // @desc    Get all payment accounts for user
 exports.getPaymentAccounts = async (req, res) => {
     try {
         const [accounts] = await db.query(
-            `SELECT pa.*,
-                (
-                    COALESCE(pa.initial_balance, 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
-                ) AS current_balance
-             FROM payment_accounts pa
+            `${ACCOUNT_BALANCE_SQL}
              WHERE pa.user_id = ?
              ORDER BY pa.is_default DESC, pa.created_at ASC`,
             [req.user.id]
@@ -47,15 +111,7 @@ exports.createPaymentAccount = async (req, res) => {
         );
 
         const [newAccount] = await db.query(
-            `SELECT pa.*,
-                (
-                    COALESCE(pa.initial_balance, 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
-                ) AS current_balance
-             FROM payment_accounts pa WHERE pa.id = ?`,
+            `${ACCOUNT_BALANCE_SQL} WHERE pa.id = ?`,
             [result.insertId]
         );
         res.status(201).json(newAccount[0]);
@@ -93,15 +149,7 @@ exports.updatePaymentAccount = async (req, res) => {
         );
 
         const [updated] = await db.query(
-            `SELECT pa.*,
-                (
-                    COALESCE(pa.initial_balance, 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'income'), 0)
-                    + COALESCE((SELECT SUM(amount) FROM transactions WHERE transfer_account_id = pa.id AND type = 'transfer'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'expense'), 0)
-                    - COALESCE((SELECT SUM(amount) FROM transactions WHERE payment_account_id = pa.id AND type = 'transfer'), 0)
-                ) AS current_balance
-             FROM payment_accounts pa WHERE pa.id = ?`,
+            `${ACCOUNT_BALANCE_SQL} WHERE pa.id = ?`,
             [req.params.id]
         );
         res.json(updated[0]);

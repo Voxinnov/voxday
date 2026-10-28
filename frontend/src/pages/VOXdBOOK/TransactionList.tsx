@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BookOpen,
   List,
@@ -16,7 +16,9 @@ import {
   ChevronDown,
   ChevronRight,
   Tag,
-  DollarSign
+  DollarSign,
+  PiggyBank,
+  TrendingUp
 } from 'lucide-react';
 import api from '../../services/smartApi';
 import toast from 'react-hot-toast';
@@ -29,6 +31,7 @@ interface PaymentAccount {
   account_type: AccountType;
   bank_name?: string;
   is_default: number;
+  initial_balance?: number | string;
   current_balance?: number | string;
 }
 
@@ -37,6 +40,7 @@ interface Transaction {
   description: string;
   amount: number | string;
   type: 'income' | 'expense' | 'transfer';
+  sub_category?: string;
   classification: 'personal' | 'official';
   category_id?: string | number;
   category_name?: string;
@@ -52,6 +56,8 @@ interface Transaction {
 interface Category {
   id: number;
   name: string;
+  type?: string;
+  sub_category?: string;
 }
 
 const ACCOUNT_ICONS: Record<AccountType, React.ReactNode> = {
@@ -70,6 +76,21 @@ const ACCOUNT_COLORS: Record<AccountType, string> = {
   bank_transfer: 'bg-amber-100 text-amber-700',
 };
 
+const MONTH_NAMES = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 const TransactionList: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'daybook' | 'table'>('daybook');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -82,8 +103,12 @@ const TransactionList: React.FC = () => {
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense' | 'transfer'>('all');
   const [filterAccount, setFilterAccount] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterSubCategory, setFilterSubCategory] = useState<string>('all');
   const [filterSection, setFilterSection] = useState<'all' | 'official' | 'personal'>('all');
-  const [dateRange, setDateRange] = useState<'all' | 'today' | 'yesterday' | 'this_month' | 'custom'>('all');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'yesterday' | 'this_month' | 'last_month' | 'month' | 'custom'>('all');
+  const [selectedMonthName, setSelectedMonthName] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [selectedYearNum, setSelectedYearNum] = useState<string>(String(new Date().getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState<string>(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -120,6 +145,44 @@ const TransactionList: React.FC = () => {
       .reduce((sum, a) => sum + Number(a.current_balance || 0), 0);
   }, [paymentAccounts]);
 
+  // Extract unique years present in transactions
+  const availableYears = useMemo(() => {
+    const set = new Set<string>();
+    const currentY = String(new Date().getFullYear());
+    set.add(currentY);
+
+    transactions.forEach(tx => {
+      if (tx.transaction_date) {
+        const y = tx.transaction_date.split('-')[0];
+        if (y && y.length === 4) set.add(y);
+      }
+    });
+
+    return Array.from(set).sort().reverse();
+  }, [transactions]);
+
+  const isTransferInForFilter = useCallback((tx: Transaction) => {
+    if (filterAccount === 'all') return false;
+    if (String(tx.transfer_account_id) === filterAccount) return true;
+    const selectedAccObj = accountMap.get(Number(filterAccount));
+    if (!selectedAccObj || selectedAccObj.account_type === 'upi') return false;
+    const chosenTransferBank = ((tx as any).transfer_payment_method || ((tx as any).transfer_bank_name ? (tx as any).transfer_bank_name.split(',')[0].trim() : '')).toLowerCase();
+    const bankAccName = selectedAccObj.account_name.toLowerCase();
+    const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+    return chosenTransferBank !== '' && (chosenTransferBank === bankAccName || (bankNameAttr !== '' && chosenTransferBank === bankNameAttr));
+  }, [filterAccount, accountMap]);
+
+  const isTransferOutForFilter = useCallback((tx: Transaction) => {
+    if (filterAccount === 'all') return false;
+    if (String(tx.payment_account_id) === filterAccount) return true;
+    const selectedAccObj = accountMap.get(Number(filterAccount));
+    if (!selectedAccObj || selectedAccObj.account_type === 'upi') return false;
+    const chosenBank = ((tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name || '').split(',')[0]?.trim() || '').toLowerCase();
+    const bankAccName = selectedAccObj.account_name.toLowerCase();
+    const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+    return chosenBank !== '' && (chosenBank === bankAccName || (bankNameAttr !== '' && chosenBank === bankNameAttr));
+  }, [filterAccount, accountMap]);
+
   // Filter logic
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
@@ -135,12 +198,40 @@ const TransactionList: React.FC = () => {
       const typeMatch = filterType === 'all' || tx.type === filterType;
 
       // Account
-      const accountMatch =
-        filterAccount === 'all' || String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount;
+      let accountMatch = true;
+      if (filterAccount !== 'all') {
+        const isDirect = String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount;
+        const selectedAccObj = accountMap.get(Number(filterAccount));
+
+        let isLinkedUpi = false;
+        if (selectedAccObj && selectedAccObj.account_type !== 'upi') {
+          const bankAccName = selectedAccObj.account_name.toLowerCase();
+          const bankNameAttr = selectedAccObj.bank_name ? selectedAccObj.bank_name.toLowerCase() : '';
+
+          if (tx.account_type === 'upi') {
+            const chosenBank = ((tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name || '').split(',')[0]?.trim() || '').toLowerCase();
+            if (chosenBank === bankAccName || (bankNameAttr !== '' && chosenBank === bankNameAttr)) {
+              isLinkedUpi = true;
+            }
+          }
+
+          if ((tx as any).transfer_account_type === 'upi' || (tx as any).transfer_bank_name) {
+            const chosenTransferBank = ((tx as any).transfer_payment_method || ((tx as any).transfer_bank_name ? (tx as any).transfer_bank_name.split(',')[0].trim() : '')).toLowerCase();
+            if (chosenTransferBank === bankAccName || (bankNameAttr !== '' && chosenTransferBank === bankNameAttr)) {
+              isLinkedUpi = true;
+            }
+          }
+        }
+        accountMatch = isDirect || isLinkedUpi;
+      }
 
       // Category
       const categoryMatch =
         filterCategory === 'all' || String(tx.category_id) === filterCategory;
+
+      // Sub Category (Investment)
+      const subCategoryMatch =
+        filterSubCategory === 'all' || tx.sub_category === filterSubCategory;
 
       // Section
       const sectionMatch =
@@ -159,68 +250,174 @@ const TransactionList: React.FC = () => {
         const yestStr = yest.toISOString().split('T')[0];
         dateMatch = txDateStr === yestStr;
       } else if (dateRange === 'this_month') {
-        const now = new Date();
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        dateMatch = txDateStr >= firstDay && txDateStr <= todayStr;
+        const currentYM = new Date().toISOString().slice(0, 7);
+        dateMatch = txDateStr.startsWith(currentYM);
+      } else if (dateRange === 'last_month') {
+        const lastM = new Date();
+        lastM.setMonth(lastM.getMonth() - 1);
+        const lastYM = lastM.toISOString().slice(0, 7);
+        dateMatch = txDateStr.startsWith(lastYM);
+      } else if (dateRange === 'month') {
+        if (selectedMonth) {
+          dateMatch = txDateStr.startsWith(selectedMonth);
+        }
       } else if (dateRange === 'custom') {
         if (startDate && txDateStr < startDate) dateMatch = false;
         if (endDate && txDateStr > endDate) dateMatch = false;
       }
 
-      return searchMatch && typeMatch && accountMatch && categoryMatch && sectionMatch && dateMatch;
+      return searchMatch && typeMatch && accountMatch && categoryMatch && subCategoryMatch && sectionMatch && dateMatch;
     });
-  }, [transactions, searchTerm, filterType, filterAccount, filterCategory, filterSection, dateRange, startDate, endDate]);
+  }, [transactions, searchTerm, filterType, filterAccount, filterCategory, filterSubCategory, filterSection, dateRange, selectedMonth, startDate, endDate, accountMap]);
 
   // Overall totals
   const totalIncome = useMemo(() => {
     return filteredTransactions
       .reduce((sum, t) => {
         if (t.type === 'income') return sum + Number(t.amount);
-        if (t.type === 'transfer' && filterAccount !== 'all' && String(t.transfer_account_id) === filterAccount) return sum + Number(t.amount);
+        if (t.type === 'transfer') {
+          if (filterAccount !== 'all') {
+            if (isTransferInForFilter(t)) return sum + Number(t.amount);
+          }
+        }
         return sum;
       }, 0);
-  }, [filteredTransactions, filterAccount]);
+  }, [filteredTransactions, filterAccount, isTransferInForFilter]);
 
   const totalExpense = useMemo(() => {
     return filteredTransactions
       .reduce((sum, t) => {
         if (t.type === 'expense') return sum + Number(t.amount);
-        if (t.type === 'transfer' && filterAccount !== 'all' && String(t.payment_account_id) === filterAccount) return sum + Number(t.amount);
+        if (t.type === 'transfer' && filterAccount !== 'all' && isTransferOutForFilter(t)) {
+          return sum + Number(t.amount);
+        }
         return sum;
       }, 0);
-  }, [filteredTransactions, filterAccount]);
+  }, [filteredTransactions, filterAccount, isTransferOutForFilter]);
+
+  const totalInvestment = useMemo(() => {
+    return filteredTransactions
+      .reduce((sum, t) => {
+        if (t.type === 'expense' && t.sub_category === 'investment') return sum + Number(t.amount);
+        return sum;
+      }, 0);
+  }, [filteredTransactions]);
 
   const netBalance = totalIncome - totalExpense;
 
-  // Group transactions by date for Daybook format
-  const groupedByDate = useMemo(() => {
-    const groups: Record<string, { date: string; transactions: Transaction[]; dayIncome: number; dayExpense: number }> = {};
+  const baseInitialBalance = useMemo(() => {
+    if (filterAccount === 'all') {
+      return paymentAccounts.reduce(
+        (sum, a) => sum + Number(a.initial_balance || 0),
+        0
+      );
+    }
+    const selectedAcc = accountMap.get(Number(filterAccount));
+    return Number(selectedAcc?.initial_balance || 0);
+  }, [filterAccount, paymentAccounts, accountMap]);
 
-    // Sort ascending for calculation, but group order descending
-    const sorted = [...filteredTransactions].sort((a, b) => 
-      new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+  // Compute exact accounting Daybook groups with Opening & Closing Balances per day
+  const groupedByDate = useMemo(() => {
+    // 1. First, build a map of daily income/expense for ALL transactions prior to date sorting to establish starting opening balance
+    // Sort transactions chronologically (oldest to newest)
+    const allSorted = [...transactions].sort((a, b) => 
+      new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
     );
 
-    sorted.forEach(tx => {
+    // Group filtered transactions by date
+    const filteredMap: Record<string, {
+      date: string;
+      transactions: Transaction[];
+      dayIncome: number;
+      dayExpense: number;
+    }> = {};
+
+    filteredTransactions.forEach(tx => {
       const dateKey = new Date(tx.transaction_date).toISOString().split('T')[0];
-      if (!groups[dateKey]) {
-        groups[dateKey] = {
+      if (!filteredMap[dateKey]) {
+        filteredMap[dateKey] = {
           date: dateKey,
           transactions: [],
           dayIncome: 0,
           dayExpense: 0,
         };
       }
-      groups[dateKey].transactions.push(tx);
+      filteredMap[dateKey].transactions.push(tx);
+
       if (tx.type === 'income') {
-        groups[dateKey].dayIncome += Number(tx.amount);
-      } else {
-        groups[dateKey].dayExpense += Number(tx.amount);
+        filteredMap[dateKey].dayIncome += Number(tx.amount);
+      } else if (tx.type === 'expense') {
+        filteredMap[dateKey].dayExpense += Number(tx.amount);
+      } else if (tx.type === 'transfer') {
+        if (filterAccount !== 'all') {
+          if (isTransferInForFilter(tx)) {
+            filteredMap[dateKey].dayIncome += Number(tx.amount);
+          } else if (isTransferOutForFilter(tx)) {
+            filteredMap[dateKey].dayExpense += Number(tx.amount);
+          }
+        }
       }
     });
 
-    return Object.values(groups);
-  }, [filteredTransactions]);
+    // Determine prior accumulated net balance for dates earlier than the displayed filtered range
+    // Sort all dates present in filteredMap chronologically
+    const sortedFilteredDates = Object.keys(filteredMap).sort();
+    if (sortedFilteredDates.length === 0) return [];
+
+    const earliestFilteredDate = sortedFilteredDates[0];
+
+    // Compute net balance from all transactions before earliestFilteredDate
+    let priorBalance = baseInitialBalance;
+    allSorted.forEach(tx => {
+      const dateKey = new Date(tx.transaction_date).toISOString().split('T')[0];
+      if (dateKey < earliestFilteredDate) {
+        if (tx.type === 'income') {
+          if (filterAccount === 'all' || String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount) {
+            priorBalance += Number(tx.amount);
+          }
+        } else if (tx.type === 'expense') {
+          if (filterAccount === 'all' || String(tx.payment_account_id) === filterAccount || String(tx.transfer_account_id) === filterAccount) {
+            priorBalance -= Number(tx.amount);
+          }
+        } else if (tx.type === 'transfer' && filterAccount !== 'all') {
+          if (isTransferInForFilter(tx)) {
+            priorBalance += Number(tx.amount);
+          } else if (isTransferOutForFilter(tx)) {
+            priorBalance -= Number(tx.amount);
+          }
+        }
+      }
+    });
+
+    // Process filtered dates chronologically to guarantee exact daily continuity:
+    // Opening(D) = RunningBalance
+    // Closing(D) = Opening(D) + Receipts(D) - Payments(D)
+    let runningBalance = priorBalance;
+    const dailyGroupsChronological: Array<{
+      date: string;
+      transactions: Transaction[];
+      dayIncome: number;
+      dayExpense: number;
+      openingBalance: number;
+      closingBalance: number;
+    }> = [];
+
+    sortedFilteredDates.forEach(dateKey => {
+      const groupData = filteredMap[dateKey];
+      const openingBalance = runningBalance;
+      const closingBalance = openingBalance + groupData.dayIncome - groupData.dayExpense;
+      runningBalance = closingBalance;
+
+      dailyGroupsChronological.push({
+        ...groupData,
+        openingBalance,
+        closingBalance,
+      });
+    });
+
+    // Return descending (newest date first for ledger display)
+    return dailyGroupsChronological.reverse();
+  }, [transactions, filteredTransactions, filterAccount, baseInitialBalance, isTransferInForFilter, isTransferOutForFilter]);
 
   // Expand all by default when groupedByDate changes
   useEffect(() => {
@@ -250,7 +447,7 @@ const TransactionList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <BookOpen className="text-indigo-600" size={26} /> Daybook & Transaction List
           </h1>
-          <p className="text-gray-500 text-sm">View daily ledger accounts, cash balances & registers</p>
+          <p className="text-gray-500 text-sm">View daily accounting ledgers with Opening & Closing balances</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -288,7 +485,7 @@ const TransactionList: React.FC = () => {
       </div>
 
       {/* Summary KPI Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl p-5 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-emerald-100">Total Cash Balance</p>
@@ -320,14 +517,32 @@ const TransactionList: React.FC = () => {
           </div>
         </div>
 
+        <div className="bg-white rounded-2xl border border-emerald-200 p-5 shadow-sm bg-gradient-to-br from-white to-emerald-50/50 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide flex items-center gap-1">
+              <PiggyBank size={14} className="text-emerald-600" /> Total Investment
+            </p>
+            <p className="text-2xl font-extrabold text-emerald-700 mt-1">₹{totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] text-emerald-600 font-medium mt-0.5">Expense section investments</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+            <TrendingUp size={24} />
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Surplus</p>
-            <p className={`text-2xl font-extrabold mt-1 ${netBalance >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
-              {netBalance >= 0 ? '+' : ''}₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              {filterAccount !== 'all' ? 'Account Closing Balance' : 'Total Closing Balance'}
+            </p>
+            <p className={`text-2xl font-extrabold mt-1 ${(baseInitialBalance + netBalance) >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
+              ₹{(baseInitialBalance + netBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+              Opening ₹{baseInitialBalance.toLocaleString('en-IN', { minimumFractionDigits: 0 })} + Net Surplus {netBalance >= 0 ? '+' : ''}₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
             </p>
           </div>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${netBalance >= 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'}`}>
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${(baseInitialBalance + netBalance) >= 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-red-50 text-red-600'}`}>
             <DollarSign size={24} />
           </div>
         </div>
@@ -339,7 +554,7 @@ const TransactionList: React.FC = () => {
           <Filter size={14} /> Filter Transactions & Daybook
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -365,14 +580,35 @@ const TransactionList: React.FC = () => {
 
           {/* Date Range Quick Selector */}
           <select
-            className="py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
             value={dateRange}
-            onChange={e => setDateRange(e.target.value as any)}
+            onChange={e => {
+              const val = e.target.value as any;
+              setDateRange(val);
+              if (val === 'this_month') {
+                const now = new Date();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const y = String(now.getFullYear());
+                setSelectedMonthName(m);
+                setSelectedYearNum(y);
+                setSelectedMonth(`${y}-${m}`);
+              } else if (val === 'last_month') {
+                const lm = new Date();
+                lm.setMonth(lm.getMonth() - 1);
+                const m = String(lm.getMonth() + 1).padStart(2, '0');
+                const y = String(lm.getFullYear());
+                setSelectedMonthName(m);
+                setSelectedYearNum(y);
+                setSelectedMonth(`${y}-${m}`);
+              }
+            }}
           >
-            <option value="all">All Dates</option>
+            <option value="all">📅 All Dates</option>
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
             <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="month">🗓️ Filter by Month Name...</option>
             <option value="custom">Custom Date Range</option>
           </select>
 
@@ -386,6 +622,17 @@ const TransactionList: React.FC = () => {
             <option value="income">Income Only (Receipts)</option>
             <option value="expense">Expense Only (Payments)</option>
             <option value="transfer">Account Transfers Only</option>
+          </select>
+
+          {/* Sub Category Filter (Investment) */}
+          <select
+            className="py-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-800"
+            value={filterSubCategory}
+            onChange={e => setFilterSubCategory(e.target.value)}
+          >
+            <option value="all">All Sub-Categories</option>
+            <option value="investment">Investment Only</option>
+            <option value="general">General Expenses Only</option>
           </select>
 
           {/* Account Filter */}
@@ -412,6 +659,76 @@ const TransactionList: React.FC = () => {
             ))}
           </select>
         </div>
+
+        {/* Month Name & Year Selector UI when Filter by Month is active */}
+        {dateRange === 'month' && (
+          <div className="flex flex-col gap-3 pt-3 border-t border-gray-100">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+                  <Calendar size={14} className="text-indigo-600" /> Select Month:
+                </span>
+                <select
+                  className="py-1.5 px-3 bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  value={selectedMonthName}
+                  onChange={e => {
+                    const m = e.target.value;
+                    setSelectedMonthName(m);
+                    setSelectedMonth(`${selectedYearNum}-${m}`);
+                  }}
+                >
+                  {MONTH_NAMES.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500">Year:</span>
+                <select
+                  className="py-1.5 px-3 bg-gray-50 border border-gray-200 text-gray-900 font-bold rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  value={selectedYearNum}
+                  onChange={e => {
+                    const y = e.target.value;
+                    setSelectedYearNum(y);
+                    setSelectedMonth(`${y}-${selectedMonthName}`);
+                  }}
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-xs font-bold px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full">
+                Filtered: {MONTH_NAMES.find(m => m.value === selectedMonthName)?.label} {selectedYearNum}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {MONTH_NAMES.map(m => {
+                const isSelected = selectedMonthName === m.value;
+                return (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonthName(m.value);
+                      setSelectedMonth(`${selectedYearNum}-${m.value}`);
+                    }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-900'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Custom Date Inputs if selected */}
         {dateRange === 'custom' && (
@@ -451,7 +768,7 @@ const TransactionList: React.FC = () => {
         </div>
       ) : activeTab === 'daybook' ? (
         /* ==========================================
-           DAYBOOK FORMAT VIEW
+           DAYBOOK FORMAT VIEW (WITH ACCURATE OPENING & CLOSING BALANCES)
         ========================================== */
         <div className="space-y-6">
           {groupedByDate.length === 0 ? (
@@ -472,10 +789,10 @@ const TransactionList: React.FC = () => {
 
               return (
                 <div key={group.date} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden print:border print:shadow-none">
-                  {/* Daybook Group Date Header */}
+                  {/* Daybook Group Date Header with Opening & Closing Balances */}
                   <div
                     onClick={() => toggleDateAccordion(group.date)}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors gap-3"
+                    className="flex flex-col lg:flex-row lg:items-center justify-between p-4 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors gap-3"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-gray-400">
@@ -490,14 +807,28 @@ const TransactionList: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Day Totals Summary */}
-                    <div className="flex items-center gap-4 text-xs sm:text-sm font-semibold">
-                      <span className="text-green-600 flex items-center gap-1">
+                    {/* Day Balance Summary Badges (Opening, Income, Expense, Closing) */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-semibold">
+                      {/* Opening Balance Badge */}
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-blue-900 border border-blue-200">
+                        <span className="text-gray-500 font-normal">Opening Bal (B/F):</span>
+                        <span className="font-black text-blue-800">₹{group.openingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </span>
+
+                      {/* Receipts */}
+                      <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200">
                         <ArrowUpRight size={14} /> Receipts: ₹{group.dayIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
-                      <span className="text-gray-300">|</span>
-                      <span className="text-red-600 flex items-center gap-1">
+
+                      {/* Payments */}
+                      <span className="inline-flex items-center gap-1 text-red-700 bg-red-50 px-2.5 py-1 rounded-lg border border-red-200">
                         <ArrowDownLeft size={14} /> Payments: ₹{group.dayExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+
+                      {/* Closing Balance Badge */}
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-50 text-indigo-950 border border-indigo-200">
+                        <span className="text-gray-500 font-normal">Closing Bal (C/F):</span>
+                        <span className="font-black text-indigo-900">₹{group.closingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                       </span>
                     </div>
                   </div>
@@ -505,40 +836,75 @@ const TransactionList: React.FC = () => {
                   {/* Daybook Transactions Ledger Table */}
                   {isExpanded && (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left">
+                      <table className="w-full text-left border-collapse border border-gray-200">
                         <thead>
-                          <tr className="bg-gray-100/60 text-xs font-bold text-gray-500 uppercase border-b border-gray-200">
-                            <th className="px-5 py-3">Description</th>
-                            <th className="px-5 py-3">Category</th>
-                            <th className="px-5 py-3">Payment Account</th>
-                            <th className="px-5 py-3">Section</th>
-                            <th className="px-5 py-3 text-right">Receipt (Income)</th>
-                            <th className="px-5 py-3 text-right">Payment (Expense)</th>
+                          <tr className="bg-gray-100/80 text-xs font-bold text-gray-600 uppercase">
+                            <th className="px-5 py-3 border border-gray-200">Description / Ledger Details</th>
+                            <th className="px-5 py-3 border border-gray-200">Category</th>
+                            <th className="px-5 py-3 border border-gray-200">Payment Account</th>
+                            <th className="px-5 py-3 border border-gray-200">Section</th>
+                            <th className="px-5 py-3 text-right border border-gray-200 text-green-700">Receipt (Income)</th>
+                            <th className="px-5 py-3 text-right border border-gray-200 text-red-700">Payment (Expense)</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm">
+                        <tbody className="text-sm">
+                          {/* 1. Explicit OPENING BALANCE (B/F) Row */}
+                          <tr className="bg-blue-50/60 font-bold border-b-2 border-blue-200 text-blue-950">
+                            <td colSpan={4} className="px-5 py-3 border border-gray-200">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                                OPENING BALANCE (Brought Forward / B/F) for {formattedDate}
+                              </span>
+                            </td>
+                            <td colSpan={2} className="px-5 py-3 text-right border border-gray-200 font-black text-blue-900 text-base">
+                              ₹{group.openingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+
+                          {/* 2. Daily Transactions Rows */}
                           {group.transactions.map(tx => (
                             <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-5 py-3.5 font-semibold text-gray-900">{tx.description}</td>
-                              <td className="px-5 py-3.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
-                                  <Tag size={11} /> {tx.category_name || 'General'}
-                                </span>
+                              <td className="px-5 py-3.5 font-semibold text-gray-900 border border-gray-200">{tx.description}</td>
+                              <td className="px-5 py-3.5 border border-gray-200">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                                    <Tag size={11} /> {tx.category_name || 'General'}
+                                  </span>
+                                  {tx.sub_category === 'investment' && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+                                      <TrendingUp size={10} /> Investment
+                                    </span>
+                                  )}
+                                </div>
                               </td>
-                              <td className="px-5 py-3.5">
+                              <td className="px-5 py-3.5 border border-gray-200">
                                 {tx.type === 'transfer' ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                                    <span>{tx.account_name || 'Account'}</span>
+                                    <span>
+                                      {tx.account_name || 'Account'}
+                                      {tx.account_type === 'upi' && ((tx as any).payment_method || accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                                        <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                                          🏦 {(tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name)?.split(',')[0]?.trim()}
+                                        </span>
+                                      )}
+                                    </span>
                                     <ArrowLeftRight size={11} className="text-amber-600 flex-shrink-0" />
-                                    <span>{tx.transfer_account_name || 'Account'}</span>
+                                    <span>
+                                      {tx.transfer_account_name || 'Account'}
+                                      {((tx as any).transfer_account_type === 'upi' || (tx as any).transfer_bank_name) && ((tx as any).transfer_payment_method || (tx as any).transfer_bank_name) && (
+                                        <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950">
+                                          🏦 {(tx as any).transfer_payment_method || ((tx as any).transfer_bank_name)?.split(',')[0]?.trim()}
+                                        </span>
+                                      )}
+                                    </span>
                                   </span>
                                 ) : tx.account_name && tx.account_type ? (
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                                     {ACCOUNT_ICONS[tx.account_type]}
                                     {tx.account_name}
-                                    {tx.account_type === 'upi' && (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                                    {tx.account_type === 'upi' && ((tx as any).payment_method || accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
                                       <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
-                                        🏦 {accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name}
+                                        🏦 {(tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name)?.split(',')[0]?.trim()}
                                       </span>
                                     )}
                                     {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
@@ -551,7 +917,7 @@ const TransactionList: React.FC = () => {
                                   <span className="text-gray-300 text-xs">—</span>
                                 )}
                               </td>
-                              <td className="px-5 py-3.5">
+                              <td className="px-5 py-3.5 border border-gray-200">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
                                   tx.classification === 'personal' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                                 }`}>
@@ -559,10 +925,10 @@ const TransactionList: React.FC = () => {
                                 </span>
                               </td>
                               {/* Income Column */}
-                              <td className="px-5 py-3.5 text-right font-bold text-green-600">
+                              <td className="px-5 py-3.5 text-right font-bold text-green-600 border border-gray-200">
                                 {tx.type === 'income' ? (
                                   `₹${Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                                ) : tx.type === 'transfer' && filterAccount === String(tx.transfer_account_id) ? (
+                                ) : tx.type === 'transfer' && isTransferInForFilter(tx) ? (
                                   <span className="text-amber-700" title="Transfer In">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                 ) : tx.type === 'transfer' && filterAccount === 'all' ? (
                                   <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-xs px-2 py-0.5 bg-amber-50 rounded border border-amber-200">
@@ -573,10 +939,10 @@ const TransactionList: React.FC = () => {
                                 )}
                               </td>
                               {/* Expense Column */}
-                              <td className="px-5 py-3.5 text-right font-bold text-red-600">
+                              <td className="px-5 py-3.5 text-right font-bold text-red-600 border border-gray-200">
                                 {tx.type === 'expense' ? (
                                   `₹${Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                                ) : tx.type === 'transfer' && filterAccount === String(tx.payment_account_id) ? (
+                                ) : tx.type === 'transfer' && isTransferOutForFilter(tx) ? (
                                   <span className="text-amber-700" title="Transfer Out">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                 ) : (
                                   '—'
@@ -585,11 +951,26 @@ const TransactionList: React.FC = () => {
                             </tr>
                           ))}
                         </tbody>
-                        <tfoot className="bg-gray-50/80 font-bold border-t border-gray-200 text-sm">
-                          <tr>
-                            <td colSpan={4} className="px-5 py-3 text-gray-700">Total for {formattedDate}</td>
-                            <td className="px-5 py-3 text-right text-green-700">₹{group.dayIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                            <td className="px-5 py-3 text-right text-red-700">₹{group.dayExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+
+                        {/* Table Footer: Daily Totals & CLOSING BALANCE (C/F) */}
+                        <tfoot className="font-bold text-sm">
+                          <tr className="bg-gray-100/70 border-t border-gray-200 text-gray-800">
+                            <td colSpan={4} className="px-5 py-3 border border-gray-200">Total Receipts & Payments for {formattedDate}</td>
+                            <td className="px-5 py-3 border border-gray-200 text-right text-green-700 font-extrabold">₹{group.dayIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-5 py-3 border border-gray-200 text-right text-red-700 font-extrabold">₹{group.dayExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+
+                          {/* 3. Explicit CLOSING BALANCE (C/F) Row */}
+                          <tr className="bg-indigo-100/70 border-t-2 border-indigo-300 text-indigo-950 font-black">
+                            <td colSpan={4} className="px-5 py-3 border border-indigo-200">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-indigo-700"></span>
+                                CLOSING BALANCE (Carried Forward / C/F) for {formattedDate}
+                              </span>
+                            </td>
+                            <td colSpan={2} className="px-5 py-3 text-right border border-indigo-200 text-indigo-900 text-base font-black">
+                              ₹{group.closingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
@@ -606,47 +987,68 @@ const TransactionList: React.FC = () => {
         ========================================== */
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left border-collapse border border-gray-200">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase">
-                  <th className="px-5 py-3.5">Date</th>
-                  <th className="px-5 py-3.5">Description</th>
-                  <th className="px-5 py-3.5">Category</th>
-                  <th className="px-5 py-3.5">Payment Account</th>
-                  <th className="px-5 py-3.5">Section</th>
-                  <th className="px-5 py-3.5 text-right text-red-600">Expense (Payment)</th>
-                  <th className="px-5 py-3.5 text-right text-green-600">Income (Receipt)</th>
+                <tr className="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                  <th className="px-5 py-3.5 border border-gray-200">Date</th>
+                  <th className="px-5 py-3.5 border border-gray-200">Description</th>
+                  <th className="px-5 py-3.5 border border-gray-200">Category</th>
+                  <th className="px-5 py-3.5 border border-gray-200">Payment Account</th>
+                  <th className="px-5 py-3.5 border border-gray-200">Section</th>
+                  <th className="px-5 py-3.5 text-right text-red-600 border border-gray-200">Expense (Payment)</th>
+                  <th className="px-5 py-3.5 text-right text-green-600 border border-gray-200">Income (Receipt)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-sm">
+              <tbody className="text-sm">
                 {filteredTransactions.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-400">No transactions found matching your criteria.</td></tr>
                 ) : (
                   filteredTransactions.map(tx => (
                     <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap font-medium">
+                      <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap font-medium border border-gray-200">
                         {new Date(tx.transaction_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
-                      <td className="px-5 py-3.5 font-semibold text-gray-900">{tx.description}</td>
-                      <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
-                          <Tag size={11} /> {tx.category_name || 'General'}
-                        </span>
+                      <td className="px-5 py-3.5 font-semibold text-gray-900 border border-gray-200">{tx.description}</td>
+                      <td className="px-5 py-3.5 border border-gray-200">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                            <Tag size={11} /> {tx.category_name || 'General'}
+                          </span>
+                          {tx.sub_category === 'investment' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+                              <TrendingUp size={10} /> Investment
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 border border-gray-200">
                         {tx.type === 'transfer' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                            <span>{tx.account_name || 'Account'}</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                            <span>
+                              {tx.account_name || 'Account'}
+                              {tx.account_type === 'upi' && ((tx as any).payment_method || accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                                <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
+                                  🏦 {(tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name)?.split(',')[0]?.trim()}
+                                </span>
+                              )}
+                            </span>
                             <ArrowLeftRight size={11} className="text-amber-600 flex-shrink-0" />
-                            <span>{tx.transfer_account_name || 'Account'}</span>
+                            <span>
+                              {tx.transfer_account_name || 'Account'}
+                              {((tx as any).transfer_account_type === 'upi' || (tx as any).transfer_bank_name) && ((tx as any).transfer_payment_method || (tx as any).transfer_bank_name) && (
+                                <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-950">
+                                  🏦 {(tx as any).transfer_payment_method || ((tx as any).transfer_bank_name)?.split(',')[0]?.trim()}
+                                </span>
+                              )}
+                            </span>
                           </span>
                         ) : tx.account_name && tx.account_type ? (
                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${ACCOUNT_COLORS[tx.account_type]}`}>
                             {ACCOUNT_ICONS[tx.account_type]}
                             {tx.account_name}
-                            {tx.account_type === 'upi' && (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
+                            {tx.account_type === 'upi' && ((tx as any).payment_method || accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name) && (
                               <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-200/80 text-violet-950">
-                                🏦 {accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name}
+                                🏦 {(tx as any).payment_method || (accountMap.get(tx.payment_account_id || 0)?.bank_name || (tx as any).bank_name)?.split(',')[0]?.trim()}
                               </span>
                             )}
                             {tx.payment_account_id && accountMap.get(tx.payment_account_id)?.current_balance !== undefined && (
@@ -659,26 +1061,26 @@ const TransactionList: React.FC = () => {
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5 border border-gray-200">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
                           tx.classification === 'personal' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                         }`}>
                           {tx.classification === 'personal' ? 'Personal' : 'Official'}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right font-bold whitespace-nowrap">
+                      <td className="px-5 py-3.5 text-right font-bold whitespace-nowrap border border-gray-200">
                         {tx.type === 'expense' ? (
                           <span className="text-red-600">₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        ) : tx.type === 'transfer' && filterAccount === String(tx.payment_account_id) ? (
+                        ) : tx.type === 'transfer' && isTransferOutForFilter(tx) ? (
                           <span className="text-amber-700 font-bold" title="Transfer Out">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         ) : (
                           <span className="text-gray-300 font-normal">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right font-bold whitespace-nowrap">
+                      <td className="px-5 py-3.5 text-right font-bold whitespace-nowrap border border-gray-200">
                         {tx.type === 'income' ? (
                           <span className="text-green-600">₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        ) : tx.type === 'transfer' && filterAccount === String(tx.transfer_account_id) ? (
+                        ) : tx.type === 'transfer' && isTransferInForFilter(tx) ? (
                           <span className="text-amber-700 font-bold" title="Transfer In">⇄ ₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         ) : tx.type === 'transfer' && filterAccount === 'all' ? (
                           <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-xs px-2 py-0.5 bg-amber-50 rounded border border-amber-200">

@@ -23,6 +23,7 @@ interface Transaction {
   description: string;
   amount: number | string;
   type: 'income' | 'expense' | 'transfer';
+  sub_category?: string;
   classification: 'personal' | 'official';
   category_id?: string | number;
   category_name?: string;
@@ -36,6 +37,7 @@ interface Category {
   id: number;
   name: string;
   type?: string;
+  sub_category?: string;
 }
 
 const ACCOUNT_ICONS: Record<AccountType, React.ReactNode> = {
@@ -67,7 +69,10 @@ const HOME_KEYWORDS = [
   'home repair',
   'house maintenance',
   'home',
-  'household'
+  'household',
+  'chitty',
+  'chit fund',
+  'investment'
 ];
 
 const EXCLUDE_KEYWORDS = ['fuel', 'petrol', 'diesel', 'vehicle', 'car', 'bike', 'scooter'];

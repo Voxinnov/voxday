@@ -5,7 +5,9 @@ const db = require('../config/db');
 exports.getTransactions = async (req, res) => {
     try {
         const [transactions] = await db.query(`
-            SELECT t.*, c.name as category_name,
+            SELECT t.*, 
+                   COALESCE(NULLIF(t.sub_category, 'general'), c.sub_category, 'general') as sub_category,
+                   c.name as category_name, c.sub_category as category_sub_category,
                    v.name as vehicle_name, v.number as vehicle_number,
                    tr.name as trip_name,
                    pa.account_name, pa.account_type, pa.bank_name, pa.upi_id,
@@ -77,18 +79,57 @@ async function syncHospitalRecord(userId, transactionId, categoryId, transaction
     }
 }
 
+// Helper to resolve effective payment_method (validates against linked banks if UPI account)
+async function resolvePaymentMethod(paymentAccountId, paymentMethod) {
+    if (!paymentAccountId) return null;
+    try {
+        const [rows] = await db.query(
+            'SELECT account_type, bank_name FROM payment_accounts WHERE id = ?',
+            [paymentAccountId]
+        );
+        if (rows.length === 0) return null;
+
+        const acc = rows[0];
+        if (acc.account_type === 'upi') {
+            const linkedBanks = acc.bank_name ? acc.bank_name.split(',').map(s => s.trim()).filter(Boolean) : [];
+            if (paymentMethod && paymentMethod.trim()) {
+                const trimmed = paymentMethod.trim();
+                if (linkedBanks.some(b => b.toLowerCase() === trimmed.toLowerCase() || (b !== '' && trimmed.toLowerCase().includes(b.toLowerCase())))) {
+                    return trimmed;
+                }
+            }
+            return linkedBanks.length > 0 ? linkedBanks[0] : null;
+        }
+    } catch (err) {
+        console.error('Error resolving payment method:', err);
+    }
+    return null;
+}
+
 // @desc    Create a transaction
 // @route   POST /api/transactions
 exports.createTransaction = async (req, res) => {
-    const { category_id, vehicle_id, trip_id, classification, amount, type, payment_method, payment_account_id, transfer_account_id, description, transaction_date } = req.body;
+    const { category_id, vehicle_id, trip_id, classification, amount, type, sub_category, payment_method, transfer_payment_method, payment_account_id, transfer_account_id, description, transaction_date } = req.body;
     if (!amount || !type || !transaction_date) {
         return res.status(400).json({ message: 'Please provide amount, type, and transaction_date' });
     }
 
     try {
+        let finalSubCategory = (sub_category && sub_category.trim()) ? sub_category.trim().toLowerCase() : 'general';
+        // If sub_category is general or not provided, try inheriting from category
+        if (finalSubCategory === 'general' && category_id) {
+            const [catRows] = await db.query('SELECT sub_category FROM categories WHERE id = ?', [category_id]);
+            if (catRows.length > 0 && catRows[0].sub_category) {
+                finalSubCategory = catRows[0].sub_category;
+            }
+        }
+
+        const finalPaymentMethod = await resolvePaymentMethod(payment_account_id, payment_method);
+        const finalTransferPaymentMethod = type === 'transfer' ? await resolvePaymentMethod(transfer_account_id, transfer_payment_method) : null;
+
         const [result] = await db.query(
-            'INSERT INTO transactions (user_id, category_id, vehicle_id, trip_id, classification, amount, type, payment_method, payment_account_id, transfer_account_id, description, transaction_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [req.user.id, category_id || null, vehicle_id || null, trip_id || null, classification || 'official', amount, type, payment_method || null, payment_account_id || null, transfer_account_id || null, description || null, transaction_date]
+            'INSERT INTO transactions (user_id, category_id, vehicle_id, trip_id, classification, amount, type, sub_category, payment_method, transfer_payment_method, payment_account_id, transfer_account_id, description, transaction_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.user.id, category_id || null, vehicle_id || null, trip_id || null, classification || 'official', amount, type, finalSubCategory, finalPaymentMethod, finalTransferPaymentMethod, payment_account_id || null, transfer_account_id || null, description || null, transaction_date]
         );
 
         if (category_id) {
@@ -97,7 +138,9 @@ exports.createTransaction = async (req, res) => {
 
         // Return with joined account, vehicle & trip info
         const [rows] = await db.query(`
-            SELECT t.*, c.name as category_name,
+            SELECT t.*, 
+                   COALESCE(NULLIF(t.sub_category, 'general'), c.sub_category, 'general') as sub_category,
+                   c.name as category_name, c.sub_category as category_sub_category,
                    v.name as vehicle_name, v.number as vehicle_number,
                    tr.name as trip_name,
                    pa.account_name, pa.account_type, pa.bank_name, pa.upi_id,
@@ -121,12 +164,23 @@ exports.createTransaction = async (req, res) => {
 // @desc    Update a transaction
 // @route   PUT /api/transactions/:id
 exports.updateTransaction = async (req, res) => {
-    const { category_id, vehicle_id, trip_id, classification, amount, type, payment_method, payment_account_id, transfer_account_id, description, transaction_date } = req.body;
+    const { category_id, vehicle_id, trip_id, classification, amount, type, sub_category, payment_method, transfer_payment_method, payment_account_id, transfer_account_id, description, transaction_date } = req.body;
 
     try {
+        let finalSubCategory = (sub_category && sub_category.trim()) ? sub_category.trim().toLowerCase() : 'general';
+        if (finalSubCategory === 'general' && category_id) {
+            const [catRows] = await db.query('SELECT sub_category FROM categories WHERE id = ?', [category_id]);
+            if (catRows.length > 0 && catRows[0].sub_category) {
+                finalSubCategory = catRows[0].sub_category;
+            }
+        }
+
+        const finalPaymentMethod = await resolvePaymentMethod(payment_account_id, payment_method);
+        const finalTransferPaymentMethod = type === 'transfer' ? await resolvePaymentMethod(transfer_account_id, transfer_payment_method) : null;
+
         const [result] = await db.query(
-            'UPDATE transactions SET category_id = ?, vehicle_id = ?, trip_id = ?, classification = ?, amount = ?, type = ?, payment_method = ?, payment_account_id = ?, transfer_account_id = ?, description = ?, transaction_date = ? WHERE id = ? AND user_id = ?',
-            [category_id || null, vehicle_id || null, trip_id || null, classification || 'official', amount, type, payment_method || null, payment_account_id || null, transfer_account_id || null, description || null, transaction_date, req.params.id, req.user.id]
+            'UPDATE transactions SET category_id = ?, vehicle_id = ?, trip_id = ?, classification = ?, amount = ?, type = ?, sub_category = ?, payment_method = ?, transfer_payment_method = ?, payment_account_id = ?, transfer_account_id = ?, description = ?, transaction_date = ? WHERE id = ? AND user_id = ?',
+            [category_id || null, vehicle_id || null, trip_id || null, classification || 'official', amount, type, finalSubCategory, finalPaymentMethod, finalTransferPaymentMethod, payment_account_id || null, transfer_account_id || null, description || null, transaction_date, req.params.id, req.user.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Transaction not found or unauthorized' });
 

@@ -14,19 +14,20 @@ exports.getCategories = async (req, res) => {
 // @desc    Create a category
 // @route   POST /api/categories
 exports.createCategory = async (req, res) => {
-    const { name, type } = req.body;
+    const { name, type, sub_category } = req.body;
     if (!name || !type) {
         return res.status(400).json({ message: 'Please provide name and type' });
     }
     if (type !== 'income' && type !== 'expense' && type !== 'transfer') {
         return res.status(400).json({ message: 'Invalid category type.' });
     }
+    const subCat = (sub_category && sub_category.trim()) ? sub_category.trim().toLowerCase() : 'general';
     try {
         const [result] = await db.query(
-            'INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)',
-            [req.user.id, name, type]
+            'INSERT INTO categories (user_id, name, type, sub_category) VALUES (?, ?, ?, ?)',
+            [req.user.id, name, type, subCat]
         );
-        res.status(201).json({ id: result.insertId, user_id: req.user.id, name, type });
+        res.status(201).json({ id: result.insertId, user_id: req.user.id, name, type, sub_category: subCat });
     } catch (error) {
         res.status(500).json({ message: 'Failed to create category.', error: error.message });
     }
@@ -35,14 +36,15 @@ exports.createCategory = async (req, res) => {
 // @desc    Update a category
 // @route   PUT /api/categories/:id
 exports.updateCategory = async (req, res) => {
-    const { name, type } = req.body;
+    const { name, type, sub_category } = req.body;
     if (type && type !== 'income' && type !== 'expense' && type !== 'transfer') {
         return res.status(400).json({ message: 'Invalid category type.' });
     }
+    const subCat = (sub_category && sub_category.trim()) ? sub_category.trim().toLowerCase() : 'general';
     try {
         const [result] = await db.query(
-            'UPDATE categories SET name = ?, type = ? WHERE id = ? AND user_id = ?',
-            [name, type, req.params.id, req.user.id]
+            'UPDATE categories SET name = ?, type = ?, sub_category = ? WHERE id = ? AND user_id = ?',
+            [name, type, subCat, req.params.id, req.user.id]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Category not found or unauthorized' });
         res.json({ message: 'Category updated successfully' });

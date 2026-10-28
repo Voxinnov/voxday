@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Tag, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Tag, Trash2, Edit2, TrendingUp, PiggyBank } from 'lucide-react';
 import api from '../../services/smartApi';
 import toast from 'react-hot-toast';
 
@@ -7,6 +7,7 @@ interface Category {
   id: number;
   name: string;
   type: string;
+  sub_category?: string;
 }
 
 const Categories: React.FC = () => {
@@ -15,10 +16,12 @@ const Categories: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('expense');
+  const [newSubCategory, setNewSubCategory] = useState('general');
 
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('expense');
+  const [editSubCategory, setEditSubCategory] = useState('general');
 
   useEffect(() => {
     fetchCategories();
@@ -40,10 +43,15 @@ const Categories: React.FC = () => {
     e.preventDefault();
     if (!newName.trim()) return;
     try {
-      const response = await api.post('/categories', { name: newName.trim(), type: newType });
+      const response = await api.post('/categories', {
+        name: newName.trim(),
+        type: newType,
+        sub_category: newType === 'expense' ? newSubCategory : 'general'
+      });
       setCategories([...categories, response.data]);
       setNewName('');
       setNewType('expense');
+      setNewSubCategory('general');
       setIsAdding(false);
       toast.success('Category created successfully!');
     } catch (error: any) {
@@ -56,6 +64,7 @@ const Categories: React.FC = () => {
     setEditingCat(cat);
     setEditName(cat.name);
     setEditType(cat.type || 'expense');
+    setEditSubCategory(cat.sub_category || 'general');
     setIsAdding(false);
   };
 
@@ -63,8 +72,13 @@ const Categories: React.FC = () => {
     e.preventDefault();
     if (!editingCat || !editName.trim()) return;
     try {
-      await api.put(`/categories/${editingCat.id}`, { name: editName.trim(), type: editType });
-      setCategories(categories.map(c => c.id === editingCat.id ? { ...c, name: editName.trim(), type: editType } : c));
+      const subCat = editType === 'expense' ? editSubCategory : 'general';
+      await api.put(`/categories/${editingCat.id}`, {
+        name: editName.trim(),
+        type: editType,
+        sub_category: subCat
+      });
+      setCategories(categories.map(c => c.id === editingCat.id ? { ...c, name: editName.trim(), type: editType, sub_category: subCat } : c));
       setEditingCat(null);
       toast.success('Category updated successfully!');
     } catch (error: any) {
@@ -90,7 +104,7 @@ const Categories: React.FC = () => {
       <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Category Management</h1>
-          <p className="text-gray-500 text-sm">Organize your income, expense, and transfer categories</p>
+          <p className="text-gray-500 text-sm">Organize your income, expense, investment, and transfer categories</p>
         </div>
         {!isAdding && !editingCat && (
           <button 
@@ -110,7 +124,7 @@ const Categories: React.FC = () => {
             <Plus size={18} className="text-indigo-600" /> Add New Category
           </h2>
           <form onSubmit={handleCreate} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-gray-700">Category Name *</label>
                 <input 
@@ -118,7 +132,7 @@ const Categories: React.FC = () => {
                   className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   value={newName} 
                   onChange={(e) => setNewName(e.target.value)} 
-                  placeholder="e.g. Shopping, Bills, Work, Account Transfer"
+                  placeholder="e.g. Chitty, SIP, Groceries, Salary"
                   autoFocus
                   required
                 />
@@ -136,6 +150,19 @@ const Categories: React.FC = () => {
                   <option value="transfer">Transfer</option>
                 </select>
               </div>
+              {newType === 'expense' && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-gray-700">Sub Category (Investment)</label>
+                  <select 
+                    className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-gray-800"
+                    value={newSubCategory} 
+                    onChange={(e) => setNewSubCategory(e.target.value)}
+                  >
+                    <option value="general">General / Regular Expense</option>
+                    <option value="investment">Investment (Chitty, SIP, FD, Stocks, etc.)</option>
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button 
@@ -163,7 +190,7 @@ const Categories: React.FC = () => {
             <Edit2 size={18} className="text-indigo-600" /> Edit Category
           </h2>
           <form onSubmit={handleUpdate} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-gray-700">Category Name *</label>
                 <input 
@@ -188,6 +215,19 @@ const Categories: React.FC = () => {
                   <option value="transfer">Transfer</option>
                 </select>
               </div>
+              {editType === 'expense' && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-semibold text-gray-700">Sub Category (Investment)</label>
+                  <select 
+                    className="p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-gray-800"
+                    value={editSubCategory} 
+                    onChange={(e) => setEditSubCategory(e.target.value)}
+                  >
+                    <option value="general">General / Regular Expense</option>
+                    <option value="investment">Investment (Chitty, SIP, FD, Stocks, etc.)</option>
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <button 
@@ -219,6 +259,7 @@ const Categories: React.FC = () => {
           </div>
         ) : categories.map(cat => {
           const isSelectedForEdit = editingCat?.id === cat.id;
+          const isInvestment = cat.sub_category === 'investment';
           return (
             <div 
               key={cat.id} 
@@ -228,25 +269,34 @@ const Categories: React.FC = () => {
             >
               <div className="flex gap-4 items-center mb-6">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${
-                  cat.type === 'income' 
+                  isInvestment
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : cat.type === 'income' 
                     ? 'bg-green-50 text-green-600' 
                     : cat.type === 'transfer' 
                     ? 'bg-amber-50 text-amber-600' 
                     : 'bg-red-50 text-red-600'
                 }`}>
-                  <Tag size={24} />
+                  {isInvestment ? <PiggyBank size={24} /> : <Tag size={24} />}
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900">{cat.name}</h3>
-                  <span className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                    cat.type === 'income'
-                      ? 'bg-green-100 text-green-800'
-                      : cat.type === 'transfer'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {cat.type}
-                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                      cat.type === 'income'
+                        ? 'bg-green-100 text-green-800'
+                        : cat.type === 'transfer'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {cat.type}
+                    </span>
+                    {isInvestment && (
+                      <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                        <TrendingUp size={11} /> Investment
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-50">
